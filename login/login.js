@@ -172,36 +172,36 @@ function setupForgotPassword() {
                     <div id="step1">
                         <div class="form-group">
                             <label for="forgotUsername">Username</label>
-                            <input type="text" id="forgotUsername" placeholder="Enter your username" required>
+                            <input type="text" id="forgotUsername" placeholder="Enter your username" required style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
                         </div>
-                        <button class="auth-btn" id="checkSecurityBtn">
+                        <button class="auth-btn" id="checkSecurityBtn" style="width: 100%; padding: 12px;">
                             Continue
                         </button>
                     </div>
                     
                     <div id="step2" style="display: none;">
                         <div class="form-group">
-                            <label id="securityQuestionLabel"></label>
-                            <input type="text" id="securityAnswer" placeholder="Enter your answer" required>
+                            <label id="securityQuestionLabel" style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #1e293b;"></label>
+                            <input type="text" id="securityAnswer" placeholder="Enter your answer" required style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
                         </div>
-                        <button class="auth-btn" id="verifyAnswerBtn">
+                        <button class="auth-btn" id="verifyAnswerBtn" style="width: 100%; padding: 12px;">
                             Verify Answer
                         </button>
-                        <p id="noSecurityMsg" style="display: none; color: #ef4444; margin-top: 10px;">
-                            No security question set for this account.
+                        <p id="noSecurityMsg" style="display: none; color: #ef4444; margin-top: 10px; padding: 10px; background: #fef2f2; border-radius: 6px;">
+                            No security question set for this account. Password recovery is not possible.
                         </p>
                     </div>
                     
                     <div id="step3" style="display: none;">
                         <div class="form-group">
                             <label for="newPassword">New Password</label>
-                            <input type="password" id="newPassword" placeholder="Enter new password" required>
+                            <input type="password" id="newPassword" placeholder="Enter new password" required style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
                         </div>
                         <div class="form-group">
                             <label for="confirmNewPassword">Confirm New Password</label>
-                            <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required>
+                            <input type="password" id="confirmNewPassword" placeholder="Confirm new password" required style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
                         </div>
-                        <button class="auth-btn" id="resetPasswordBtn">
+                        <button class="auth-btn" id="resetPasswordBtn" style="width: 100%; padding: 12px;">
                             Reset Password
                         </button>
                     </div>
@@ -213,9 +213,9 @@ function setupForgotPassword() {
                                 <path d="M20 30L27.5 37.5L40 25" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                         </div>
-                        <h3>Password Reset Successful!</h3>
-                        <p>Your password has been reset. You can now login with your new password.</p>
-                        <button class="auth-btn secondary" id="closeModalBtn">
+                        <h3 style="color: #10b981; margin-bottom: 10px;">Password Reset Successful!</h3>
+                        <p style="color: #64748b; margin-bottom: 20px;">Your password has been reset. You can now login with your new password.</p>
+                        <button class="auth-btn secondary" id="closeModalBtn" style="padding: 12px 24px;">
                             Close
                         </button>
                     </div>
@@ -335,22 +335,34 @@ function setupModalEvents() {
     
     // Close modal
     function closeModal() {
+        if (!modal) return
+        
         modal.style.animation = 'fadeOut 0.3s ease'
         const style = document.createElement('style')
         style.textContent = `@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }`
         document.head.appendChild(style)
         
         setTimeout(() => {
-            modal.style.display = 'none'
-            // Reset form
-            document.getElementById('step1').style.display = 'block'
-            document.getElementById('step2').style.display = 'none'
-            document.getElementById('step3').style.display = 'none'
-            document.getElementById('step4').style.display = 'none'
-            document.getElementById('forgotUsername').value = ''
-            document.getElementById('securityAnswer').value = ''
-            document.getElementById('newPassword').value = ''
-            document.getElementById('confirmNewPassword').value = ''
+            if (modal.parentNode) {
+                modal.style.display = 'none'
+                // Reset form
+                document.getElementById('step1').style.display = 'block'
+                document.getElementById('step2').style.display = 'none'
+                document.getElementById('step3').style.display = 'none'
+                document.getElementById('step4').style.display = 'none'
+                if (document.getElementById('forgotUsername')) {
+                    document.getElementById('forgotUsername').value = ''
+                }
+                if (document.getElementById('securityAnswer')) {
+                    document.getElementById('securityAnswer').value = ''
+                }
+                if (document.getElementById('newPassword')) {
+                    document.getElementById('newPassword').value = ''
+                }
+                if (document.getElementById('confirmNewPassword')) {
+                    document.getElementById('confirmNewPassword').value = ''
+                }
+            }
         }, 300)
     }
     
@@ -372,7 +384,7 @@ function setupModalEvents() {
     // Step 1: Check security question
     if (checkSecurityBtn) {
         checkSecurityBtn.addEventListener('click', async function() {
-            const username = document.getElementById('forgotUsername').value.trim()
+            const username = document.getElementById('forgotUsername')?.value.trim() || ''
             
             if (!username) {
                 showMessage('Please enter your username', 'error')
@@ -381,10 +393,20 @@ function setupModalEvents() {
             
             currentUsername = username
             
+            // Add loading state
+            checkSecurityBtn.disabled = true
+            checkSecurityBtn.textContent = 'Checking...'
+            
             const result = await getSecurityQuestion(username)
             
+            checkSecurityBtn.disabled = false
+            checkSecurityBtn.textContent = 'Continue'
+            
             if (result.success) {
-                if (result.hasSecurity) {
+                if (result.locked) {
+                    // Account is locked
+                    showMessage(result.error, 'error')
+                } else if (result.hasSecurity && result.question) {
                     // Show security question
                     document.getElementById('step1').style.display = 'none'
                     document.getElementById('step2').style.display = 'block'
@@ -403,7 +425,7 @@ function setupModalEvents() {
     // Step 2: Verify security answer
     if (verifyAnswerBtn) {
         verifyAnswerBtn.addEventListener('click', function() {
-            const answer = document.getElementById('securityAnswer').value.trim()
+            const answer = document.getElementById('securityAnswer')?.value.trim() || ''
             
             if (!answer) {
                 showMessage('Please enter your answer', 'error')
@@ -421,8 +443,8 @@ function setupModalEvents() {
     // Step 3: Reset password
     if (resetPasswordBtn) {
         resetPasswordBtn.addEventListener('click', async function() {
-            const newPassword = document.getElementById('newPassword').value
-            const confirmPassword = document.getElementById('confirmNewPassword').value
+            const newPassword = document.getElementById('newPassword')?.value || ''
+            const confirmPassword = document.getElementById('confirmNewPassword')?.value || ''
             
             if (!newPassword || !confirmPassword) {
                 showMessage('Please fill in all fields', 'error')
@@ -439,7 +461,14 @@ function setupModalEvents() {
                 return
             }
             
+            // Add loading state
+            resetPasswordBtn.disabled = true
+            resetPasswordBtn.textContent = 'Resetting...'
+            
             const result = await resetPasswordWithSecurity(currentUsername, securityAnswer, newPassword)
+            
+            resetPasswordBtn.disabled = false
+            resetPasswordBtn.textContent = 'Reset Password'
             
             if (result.success) {
                 document.getElementById('step3').style.display = 'none'
@@ -456,6 +485,13 @@ function showForgotPasswordModal() {
     const modal = document.getElementById('forgotModal')
     if (modal) {
         modal.style.display = 'flex'
+        // Focus on username input
+        setTimeout(() => {
+            const usernameInput = document.getElementById('forgotUsername')
+            if (usernameInput) {
+                usernameInput.focus()
+            }
+        }, 100)
     }
 }
 
