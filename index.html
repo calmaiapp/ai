@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calm • Peaceful Conversations</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        }
+        
+        .logo {
+            font-size: 48px;
+            font-weight: 300;
+            color: #0ea5e9;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+        }
+        
+        .tagline {
+            font-size: 20px;
+            color: #64748b;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+        
+        .auth-buttons {
+            display: flex;
+            gap: 16px;
+            margin-top: 32px;
+        }
+        
+        .btn {
+            padding: 12px 32px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #0ea5e9;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0284c7;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #0ea5e9;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            border-color: #0ea5e9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.1);
+        }
+        
+        #user-info {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-top: 32px;
+            max-width: 400px;
+            width: 100%;
+            display: none;
+        }
+        
+        #user-info.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="logo">Calm</div>
+        <div class="tagline">Peaceful conversations • Mindful moments</div>
+        
+        <div id="app">
+            <!-- Content will be loaded by main.js -->
+        </div>
+        
+        <div class="auth-buttons" id="authButtons">
+            <!-- Buttons will be shown/hidden by JS -->
+        </div>
+        
+        <div id="user-info">
+            <!-- User info will be loaded here -->
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
