@@ -1,4 +1,12 @@
-import { signIn } from '../utils/auth.js'
+import { signIn, getSession } from '../utils/auth.js'
+
+// Global error handler
+if (typeof window !== 'undefined') {
+    window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error)
+        showMessage('Error: ' + e.error.message, 'error')
+    })
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('loginForm')
@@ -8,48 +16,50 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if user is already logged in
     checkAuthStatus()
     
-    loginForm.addEventListener('submit', async function(e) {
-        e.preventDefault()
-        
-        const email = document.getElementById('email').value.trim()
-        const password = document.getElementById('password').value
-        const rememberMe = document.getElementById('remember').checked
-        
-        // Validate inputs
-        if (!email || !password) {
-            showMessage('Please fill in all fields', 'error')
-            return
-        }
-        
-        // Show loading
-        loginBtn.disabled = true
-        loadingOverlay.classList.add('active')
-        
-        // Sign in
-        const result = await signIn(email, password)
-        
-        // Hide loading
-        loginBtn.disabled = false
-        loadingOverlay.classList.remove('active')
-        
-        if (result.success) {
-            showMessage('Login successful! Redirecting...', 'success')
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault()
             
-            // Store remember me preference
-            if (rememberMe) {
-                localStorage.setItem('rememberMe', 'true')
-            } else {
-                localStorage.removeItem('rememberMe')
+            const email = document.getElementById('email').value.trim()
+            const password = document.getElementById('password').value
+            const rememberMe = document.getElementById('remember').checked
+            
+            // Validate inputs
+            if (!email || !password) {
+                showMessage('Please fill in all fields', 'error')
+                return
             }
             
-            // Redirect to main page after 1.5 seconds
-            setTimeout(() => {
-                window.location.href = '../index.html'
-            }, 1500)
-        } else {
-            showMessage(result.error || 'Login failed. Please try again.', 'error')
-        }
-    })
+            // Show loading
+            loginBtn.disabled = true
+            loadingOverlay.classList.add('active')
+            
+            // Sign in
+            const result = await signIn(email, password)
+            
+            // Hide loading
+            loginBtn.disabled = false
+            loadingOverlay.classList.remove('active')
+            
+            if (result.success) {
+                showMessage('Login successful! Redirecting...', 'success')
+                
+                // Store remember me preference
+                if (rememberMe) {
+                    localStorage.setItem('rememberMe', 'true')
+                } else {
+                    localStorage.removeItem('rememberMe')
+                }
+                
+                // Redirect to main page after 1.5 seconds
+                setTimeout(() => {
+                    window.location.href = '../index.html'
+                }, 1500)
+            } else {
+                showMessage(result.error || 'Login failed. Please try again.', 'error')
+            }
+        })
+    }
     
     // Google login button
     const googleBtn = document.querySelector('.social-btn.google')
@@ -62,11 +72,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Check authentication status
 async function checkAuthStatus() {
-    const sessionResult = await getSession()
-    
-    if (sessionResult.success && sessionResult.session) {
-        // User is already logged in, redirect to main page
-        window.location.href = '../index.html'
+    try {
+        const sessionResult = await getSession()
+        
+        if (sessionResult.success && sessionResult.session) {
+            // User is already logged in, redirect to main page
+            window.location.href = '../index.html'
+        }
+    } catch (error) {
+        console.log('Auth check error:', error)
     }
 }
 
@@ -139,16 +153,4 @@ function showMessage(message, type) {
             }, 300)
         }
     }, 3000)
-}
-
-// Import getSession from auth.js
-async function getSession() {
-    try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
-        
-        return { success: true, session: data.session }
-    } catch (error) {
-        return { success: false, error: error.message }
-    }
 }
