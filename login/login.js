@@ -1,0 +1,154 @@
+import { signIn } from '../utils/auth.js'
+
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.getElementById('loginForm')
+    const loginBtn = document.getElementById('loginBtn')
+    const loadingOverlay = document.getElementById('loadingOverlay')
+    
+    // Check if user is already logged in
+    checkAuthStatus()
+    
+    loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault()
+        
+        const email = document.getElementById('email').value.trim()
+        const password = document.getElementById('password').value
+        const rememberMe = document.getElementById('remember').checked
+        
+        // Validate inputs
+        if (!email || !password) {
+            showMessage('Please fill in all fields', 'error')
+            return
+        }
+        
+        // Show loading
+        loginBtn.disabled = true
+        loadingOverlay.classList.add('active')
+        
+        // Sign in
+        const result = await signIn(email, password)
+        
+        // Hide loading
+        loginBtn.disabled = false
+        loadingOverlay.classList.remove('active')
+        
+        if (result.success) {
+            showMessage('Login successful! Redirecting...', 'success')
+            
+            // Store remember me preference
+            if (rememberMe) {
+                localStorage.setItem('rememberMe', 'true')
+            } else {
+                localStorage.removeItem('rememberMe')
+            }
+            
+            // Redirect to main page after 1.5 seconds
+            setTimeout(() => {
+                window.location.href = '../index.html'
+            }, 1500)
+        } else {
+            showMessage(result.error || 'Login failed. Please try again.', 'error')
+        }
+    })
+    
+    // Google login button
+    const googleBtn = document.querySelector('.social-btn.google')
+    if (googleBtn) {
+        googleBtn.addEventListener('click', function() {
+            showMessage('Google login coming soon!', 'info')
+        })
+    }
+})
+
+// Check authentication status
+async function checkAuthStatus() {
+    const sessionResult = await getSession()
+    
+    if (sessionResult.success && sessionResult.session) {
+        // User is already logged in, redirect to main page
+        window.location.href = '../index.html'
+    }
+}
+
+// Show message function
+function showMessage(message, type) {
+    // Remove any existing message
+    const existingMsg = document.querySelector('.message-alert')
+    if (existingMsg) existingMsg.remove()
+    
+    // Create message element
+    const msgEl = document.createElement('div')
+    msgEl.className = `message-alert ${type}`
+    msgEl.textContent = message
+    
+    // Add styles
+    msgEl.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+    `
+    
+    // Set colors based on type
+    if (type === 'success') {
+        msgEl.style.backgroundColor = '#10b981'
+    } else if (type === 'error') {
+        msgEl.style.backgroundColor = '#ef4444'
+    } else {
+        msgEl.style.backgroundColor = '#0ea5e9'
+    }
+    
+    // Add animation
+    const style = document.createElement('style')
+    style.textContent = `
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+    `
+    document.head.appendChild(style)
+    
+    document.body.appendChild(msgEl)
+    
+    // Remove message after 3 seconds
+    setTimeout(() => {
+        if (msgEl.parentNode) {
+            msgEl.style.animation = 'slideUp 0.3s ease'
+            
+            // Add slideUp animation
+            const slideUpStyle = document.createElement('style')
+            slideUpStyle.textContent = `
+                @keyframes slideUp {
+                    from { top: 20px; opacity: 1; }
+                    to { top: -50px; opacity: 0; }
+                }
+            `
+            document.head.appendChild(slideUpStyle)
+            
+            setTimeout(() => {
+                if (msgEl.parentNode) {
+                    msgEl.remove()
+                }
+            }, 300)
+        }
+    }, 3000)
+}
+
+// Import getSession from auth.js
+async function getSession() {
+    try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error) throw error
+        
+        return { success: true, session: data.session }
+    } catch (error) {
+        return { success: false, error: error.message }
+    }
+}
