@@ -2,31 +2,83 @@ import { supabase } from './supabase.js'
 
 // ========== HELPER FUNCTIONS ==========
 
+// Handle Supabase errors gracefully
+function handleSupabaseError(error) {
+    console.error('Supabase Error:', error)
+    
+    if (error.message.includes('rate limit') || 
+        error.message.includes('39 seconds') ||
+        error.message.includes('too many requests')) {
+        return {
+            success: false,
+            error: 'Too many requests. Please wait a minute before trying again.',
+            rateLimited: true
+        }
+    }
+    
+    if (error.message.includes('already exists') ||
+        error.message.includes('duplicate key')) {
+        return {
+            success: false,
+            error: 'Username or email already exists.',
+            duplicate: true
+        }
+    }
+    
+    if (error.message.includes('password') ||
+        error.message.includes('Invalid login')) {
+        return {
+            success: false,
+            error: 'Invalid email or password.',
+            authError: true
+        }
+    }
+    
+    if (error.message.includes('network') ||
+        error.message.includes('fetch')) {
+        return {
+            success: false,
+            error: 'Network error. Please check your connection.',
+            networkError: true
+        }
+    }
+    
+    return {
+        success: false,
+        error: error.message || 'Something went wrong. Please try again.'
+    }
+}
+
 // Hash security answer
 async function hashSecurityAnswer(answer) {
     if (!answer) return null
     
-    // Normalize: lowercase, trim, remove extra spaces
-    const normalized = answer
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, ' ')
-    
-    // Simple hash using SHA-256
-    const encoder = new TextEncoder()
-    const data = encoder.encode(normalized)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-    
-    return hashHex
+    try {
+        // Normalize: lowercase, trim, remove extra spaces
+        const normalized = answer
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ')
+        
+        // Simple hash using SHA-256
+        const encoder = new TextEncoder()
+        const data = encoder.encode(normalized)
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+        
+        return hashHex
+    } catch (error) {
+        console.log('Hash error:', error)
+        return null
+    }
 }
 
 // Check if account is locked
 async function isAccountLocked(username) {
     try {
         // Check security_attempts table first
-        const { data: attempt } = await supabase
+        const { data: attempt, error: attemptError } = await supabase
             .from('security_attempts')
             .select('locked_until, attempt_count')
             .eq('username', username)
@@ -34,7 +86,7 @@ async function isAccountLocked(username) {
             .limit(1)
             .single()
         
-        if (attempt && attempt.locked_until) {
+        if (!attemptError && attempt && attempt.locked_until) {
             const lockTime = new Date(attempt.locked_until)
             if (lockTime > new Date()) {
                 return { 
@@ -46,13 +98,13 @@ async function isAccountLocked(username) {
         }
         
         // Check profiles table as backup
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('locked_until, failed_attempts')
             .eq('username', username)
             .single()
         
-        if (profile && profile.locked_until) {
+        if (!profileError && profile && profile.locked_until) {
             const lockTime = new Date(profile.locked_until)
             if (lockTime > new Date()) {
                 return { 
@@ -65,6 +117,7 @@ async function isAccountLocked(username) {
         
         return { locked: false }
     } catch (error) {
+        console.log('Lock check error:', error)
         return { locked: false }
     }
 }
@@ -73,13 +126,17 @@ async function isAccountLocked(username) {
 async function trackFailedAttempt(username, ip = '') {
     try {
         // 1. Check existing attempts
-        const { data: existing } = await supabase
+        const { data: existing, error: fetchError } = await supabase
             .from('security_attempts')
             .select('*')
             .eq('username', username)
             .order('created_at', { ascending: false })
             .limit(1)
             .single()
+        
+        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows
+            console.log('Fetch attempt error:', fetchError)
+        }
         
         if (existing && existing.locked_until && new Date(existing.locked_until) > new Date()) {
             // Already locked
@@ -97,7 +154,7 @@ async function trackFailedAttempt(username, ip = '') {
                 ? new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
                 : null
             
-            await supabase
+            const { error: updateError } = await supabase
                 .from('security_attempts')
                 .update({
                     attempt_count: attemptCount,
@@ -107,6 +164,10 @@ async function trackFailedAttempt(username, ip = '') {
                 })
                 .eq('id', existing.id)
             
+            if (updateError) {
+                console.log('Update attempt error:', updateError)
+            }
+            
             return { 
                 locked: attemptCount >= 3,
                 attemptsLeft: Math.max(0, 3 - attemptCount),
@@ -114,7 +175,7 @@ async function trackFailedAttempt(username, ip = '') {
             }
         } else {
             // First attempt
-            await supabase
+            const { error: insertError } = await supabase
                 .from('security_attempts')
                 .insert({
                     username: username,
@@ -123,6 +184,10 @@ async function trackFailedAttempt(username, ip = '') {
                     ip_address: ip,
                     locked_until: null
                 })
+            
+            if (insertError) {
+                console.log('Insert attempt error:', insertError)
+            }
             
             return { locked: false, attemptsLeft: 2 }
         }
@@ -159,6 +224,21 @@ async function resetSecurityAttempts(username) {
 // Sign up function (without security question initially)
 export async function signUp(email, password, username) {
     try {
+        // Check rate limit first
+        const rateLimitKey = `signup_attempt_${email}`
+        const lastAttempt = localStorage.getItem(rateLimitKey)
+        
+        if (lastAttempt) {
+            const timePassed = Date.now() - parseInt(lastAttempt)
+            if (timePassed < 60000) { // 60 seconds cooldown
+                return {
+                    success: false,
+                    error: `Please wait ${Math.ceil((60000 - timePassed) / 1000)} seconds before trying again.`,
+                    rateLimited: true
+                }
+            }
+        }
+        
         // 1. First sign up with Supabase Auth
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
             email: email,
@@ -171,37 +251,55 @@ export async function signUp(email, password, username) {
             }
         })
         
-        if (signupError) throw signupError
+        if (signupError) {
+            // Store attempt time for rate limiting
+            localStorage.setItem(rateLimitKey, Date.now().toString())
+            return handleSupabaseError(signupError)
+        }
         
         // 2. If signup successful, create profile
         if (signupData.user) {
             // Create profile in database
-            const { error: profileError } = await supabase.from('profiles').insert({
-                id: signupData.user.id,
-                username: username,
-                created_at: new Date()
-            })
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                    id: signupData.user.id,
+                    username: username,
+                    created_at: new Date()
+                })
             
             if (profileError) {
                 console.log('Profile creation warning:', profileError.message)
-                // Continue anyway - profile can be created later
+                // Don't fail the signup if profile creation fails
             }
             
             // Create user settings
-            await supabase.from('user_settings').insert({
-                user_id: signupData.user.id,
-                theme: 'light',
-                notifications_enabled: true,
-                meditation_goal_minutes: 10
-            }).catch(err => console.log('Settings warning:', err.message))
+            try {
+                await supabase
+                    .from('user_settings')
+                    .insert({
+                        user_id: signupData.user.id,
+                        theme: 'light',
+                        notifications_enabled: true,
+                        meditation_goal_minutes: 10
+                    })
+            } catch (settingsError) {
+                console.log('Settings warning:', settingsError.message)
+            }
             
             // Create first achievement
-            await supabase.from('achievements').insert({
-                user_id: signupData.user.id,
-                achievement_type: 'welcome',
-                title: 'Welcome to Calm',
-                description: 'Started your meditation journey'
-            }).catch(err => console.log('Achievement warning:', err.message))
+            try {
+                await supabase
+                    .from('achievements')
+                    .insert({
+                        user_id: signupData.user.id,
+                        achievement_type: 'welcome',
+                        title: 'Welcome to Calm',
+                        description: 'Started your meditation journey'
+                    })
+            } catch (achievementError) {
+                console.log('Achievement warning:', achievementError.message)
+            }
             
             // 3. Immediately log the user in
             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -221,11 +319,17 @@ export async function signUp(email, password, username) {
             }
             
             // Update last active in profiles
-            await supabase
-                .from('profiles')
-                .update({ last_active: new Date() })
-                .eq('id', loginData.user.id)
-                .catch(err => console.log('Last active update warning:', err.message))
+            try {
+                await supabase
+                    .from('profiles')
+                    .update({ last_active: new Date() })
+                    .eq('id', loginData.user.id)
+            } catch (updateError) {
+                console.log('Last active update warning:', updateError.message)
+            }
+            
+            // Clear rate limit on success
+            localStorage.removeItem(rateLimitKey)
             
             return { 
                 success: true, 
@@ -242,11 +346,8 @@ export async function signUp(email, password, username) {
             message: 'Account created! Please check your email.'
         }
     } catch (error) {
-        return { 
-            success: false, 
-            error: error.message,
-            autoLoggedIn: false 
-        }
+        console.log('Signup error:', error)
+        return handleSupabaseError(error)
     }
 }
 
@@ -255,6 +356,13 @@ export async function updateSecurityQuestion(username, question, answer) {
     try {
         // 1. Hash the security answer
         const answerHash = await hashSecurityAnswer(answer)
+        
+        if (!answerHash) {
+            return { 
+                success: false, 
+                error: 'Failed to process security answer.' 
+            }
+        }
         
         // 2. Update the profile
         const { error } = await supabase
@@ -266,47 +374,58 @@ export async function updateSecurityQuestion(username, question, answer) {
             })
             .eq('username', username)
         
-        if (error) throw error
+        if (error) {
+            console.log('Update security question error:', error)
+            return handleSupabaseError(error)
+        }
         
         return { success: true }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Update security question error:', error)
+        return handleSupabaseError(error)
     }
 }
 
 // Sign in with username or email
 export async function signIn(identifier, password) {
     try {
+        // Check rate limit for login
+        const rateLimitKey = `login_attempt_${identifier}`
+        const lastAttempt = localStorage.getItem(rateLimitKey)
+        
+        if (lastAttempt) {
+            const timePassed = Date.now() - parseInt(lastAttempt)
+            if (timePassed < 30000) { // 30 seconds cooldown
+                return {
+                    success: false,
+                    error: `Please wait ${Math.ceil((30000 - timePassed) / 1000)} seconds before trying again.`,
+                    rateLimited: true
+                }
+            }
+        }
+        
         let email = identifier;
         
         // If it doesn't contain '@', try to find email from username
         if (!identifier.includes('@')) {
-            // Query profiles table to get user ID from username
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('username', identifier)
-                .single()
-            
-            if (profileError || !profile) {
-                // Try to find email in auth.users metadata
-                const { data: usersData } = await supabase.auth.admin.listUsers()
-                const user = usersData.users.find(u => 
-                    u.user_metadata?.username === identifier || 
-                    u.email === identifier
-                )
+            try {
+                // Query profiles table to get user ID from username
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('username', identifier)
+                    .single()
                 
-                if (user) {
-                    email = user.email
-                } else {
-                    throw new Error('User not found')
+                if (!profileError && profile) {
+                    // Get user by ID to get email
+                    const { data: userData } = await supabase.auth.admin.getUserById(profile.id)
+                    if (userData && userData.user) {
+                        email = userData.user.email
+                    }
                 }
-            } else {
-                // Get user by ID to get email
-                const { data: userData } = await supabase.auth.admin.getUserById(profile.id)
-                if (userData && userData.user) {
-                    email = userData.user.email
-                }
+            } catch (lookupError) {
+                console.log('Username lookup error:', lookupError)
+                // Continue with original identifier as email
             }
         }
         
@@ -316,17 +435,29 @@ export async function signIn(identifier, password) {
             password: password
         })
         
-        if (error) throw error
+        if (error) {
+            // Store attempt time for rate limiting
+            localStorage.setItem(rateLimitKey, Date.now().toString())
+            return handleSupabaseError(error)
+        }
         
         // Update last active in profiles
-        await supabase
-            .from('profiles')
-            .update({ last_active: new Date() })
-            .eq('id', data.user.id)
+        try {
+            await supabase
+                .from('profiles')
+                .update({ last_active: new Date() })
+                .eq('id', data.user.id)
+        } catch (updateError) {
+            console.log('Last active update warning:', updateError.message)
+        }
+        
+        // Clear rate limit on success
+        localStorage.removeItem(rateLimitKey)
         
         return { success: true, data }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Signin error:', error)
+        return handleSupabaseError(error)
     }
 }
 
@@ -351,10 +482,10 @@ export async function getSecurityQuestion(username, ip = '') {
             .single()
         
         if (error) {
-            // User not found
+            // User not found or other error
             return { 
                 success: false, 
-                error: 'User not found',
+                error: 'User not found or no security question set.',
                 locked: false 
             }
         }
@@ -365,9 +496,10 @@ export async function getSecurityQuestion(username, ip = '') {
             hasSecurity: !!data.security_question && !!data.security_answer_hash
         }
     } catch (error) {
+        console.log('Get security question error:', error)
         return { 
             success: false, 
-            error: error.message || 'Failed to get security question',
+            error: 'Failed to get security question. Please try again.',
             locked: false 
         }
     }
@@ -379,7 +511,11 @@ export async function resetPasswordWithSecurity(username, answer, newPassword) {
         // 1. Check lock status
         const lockCheck = await isAccountLocked(username)
         if (lockCheck.locked) {
-            throw new Error(`Account locked. Try again in ${lockCheck.timeLeft} minutes`)
+            return { 
+                success: false, 
+                error: `Account locked. Try again in ${lockCheck.timeLeft} minutes`,
+                locked: true 
+            }
         }
         
         // 2. Get stored hash
@@ -389,14 +525,32 @@ export async function resetPasswordWithSecurity(username, answer, newPassword) {
             .eq('username', username)
             .single()
         
-        if (profileError) throw new Error('User not found')
+        if (profileError) {
+            return { 
+                success: false, 
+                error: 'User not found.',
+                locked: false 
+            }
+        }
         
         if (!profile.security_answer_hash) {
-            throw new Error('No security question set for this account')
+            return { 
+                success: false, 
+                error: 'No security question set for this account.',
+                locked: false 
+            }
         }
         
         // 3. Hash the provided answer
         const answerHash = await hashSecurityAnswer(answer)
+        
+        if (!answerHash) {
+            return { 
+                success: false, 
+                error: 'Failed to verify answer.',
+                locked: false 
+            }
+        }
         
         // 4. Compare hashes
         if (answerHash !== profile.security_answer_hash) {
@@ -404,16 +558,28 @@ export async function resetPasswordWithSecurity(username, answer, newPassword) {
             const attemptResult = await trackFailedAttempt(username)
             
             if (attemptResult.locked) {
-                throw new Error(`Too many attempts. Account locked for 30 minutes.`)
+                return { 
+                    success: false, 
+                    error: 'Too many attempts. Account locked for 30 minutes.',
+                    locked: true 
+                }
             } else {
-                throw new Error(`Wrong answer. ${attemptResult.attemptsLeft} attempts left.`)
+                return { 
+                    success: false, 
+                    error: `Wrong answer. ${attemptResult.attemptsLeft} attempts left.`,
+                    locked: false 
+                }
             }
         }
         
         // 5. Get user email to update password
         const { data: userData } = await supabase.auth.admin.getUserById(profile.id)
         if (!userData || !userData.user) {
-            throw new Error('User not found')
+            return { 
+                success: false, 
+                error: 'User not found in authentication system.',
+                locked: false 
+            }
         }
         
         // 6. Update password
@@ -422,14 +588,18 @@ export async function resetPasswordWithSecurity(username, answer, newPassword) {
             { password: newPassword }
         )
         
-        if (updateError) throw updateError
+        if (updateError) {
+            console.log('Password update error:', updateError)
+            return handleSupabaseError(updateError)
+        }
         
         // 7. Reset attempts on success
         await resetSecurityAttempts(username)
         
         return { success: true }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Reset password error:', error)
+        return handleSupabaseError(error)
     }
 }
 
@@ -437,11 +607,14 @@ export async function resetPasswordWithSecurity(username, answer, newPassword) {
 export async function signOut() {
     try {
         const { error } = await supabase.auth.signOut()
-        if (error) throw error
+        if (error) {
+            return handleSupabaseError(error)
+        }
         
         return { success: true }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Signout error:', error)
+        return handleSupabaseError(error)
     }
 }
 
@@ -449,11 +622,14 @@ export async function signOut() {
 export async function getSession() {
     try {
         const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
+        if (error) {
+            return handleSupabaseError(error)
+        }
         
         return { success: true, session: data.session }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Get session error:', error)
+        return handleSupabaseError(error)
     }
 }
 
@@ -461,10 +637,13 @@ export async function getSession() {
 export async function getUser() {
     try {
         const { data, error } = await supabase.auth.getUser()
-        if (error) throw error
+        if (error) {
+            return handleSupabaseError(error)
+        }
         
         return { success: true, user: data.user }
     } catch (error) {
-        return { success: false, error: error.message }
+        console.log('Get user error:', error)
+        return handleSupabaseError(error)
     }
 }
