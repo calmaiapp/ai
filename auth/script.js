@@ -1,5 +1,13 @@
 import { signUp } from '../utils/auth.js'
 
+// Global error handler
+if (typeof window !== 'undefined') {
+    window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error)
+        showMessage('Error: ' + e.error.message, 'error')
+    })
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Check URL for mode (signup or forgot password)
     const urlParams = new URLSearchParams(window.location.search)
@@ -21,13 +29,13 @@ function showForm(mode) {
     const successMessage = document.getElementById('successMessage')
     
     if (mode === 'forgot') {
-        signupForm.style.display = 'none'
-        forgotForm.style.display = 'block'
-        successMessage.style.display = 'none'
+        if (signupForm) signupForm.style.display = 'none'
+        if (forgotForm) forgotForm.style.display = 'block'
+        if (successMessage) successMessage.style.display = 'none'
     } else {
-        signupForm.style.display = 'block'
-        forgotForm.style.display = 'none'
-        successMessage.style.display = 'none'
+        if (signupForm) signupForm.style.display = 'block'
+        if (forgotForm) forgotForm.style.display = 'none'
+        if (successMessage) successMessage.style.display = 'none'
     }
 }
 
@@ -149,9 +157,9 @@ function showSuccessMessage() {
     const forgotForm = document.getElementById('forgotForm')
     const successMessage = document.getElementById('successMessage')
     
-    signupForm.style.display = 'none'
-    forgotForm.style.display = 'none'
-    successMessage.style.display = 'block'
+    if (signupForm) signupForm.style.display = 'none'
+    if (forgotForm) forgotForm.style.display = 'none'
+    if (successMessage) successMessage.style.display = 'block'
 }
 
 // Setup back to login button
