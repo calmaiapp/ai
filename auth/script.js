@@ -1,4 +1,4 @@
-import { signUp, signInWithGoogle } from '../utils/auth.js'
+import { signUp } from '../utils/auth.js'
 
 // Global error handler
 if (typeof window !== 'undefined') {
@@ -21,25 +21,27 @@ document.addEventListener('DOMContentLoaded', function() {
     setupForgotForm()
     setupBackButton()
     setupGoogleSignup()
+    setupTermsModals()
 })
 
-// Setup Google Signup
-function setupGoogleSignup() {
-    const googleBtn = document.querySelector('.social-btn.google')
-    if (googleBtn) {
-        googleBtn.addEventListener('click', async function() {
-            googleBtn.disabled = true
-            const result = await signInWithGoogle()
-            
-            if (!result.success) {
-                googleBtn.disabled = false
-                showMessage('Google signup failed: ' + result.error, 'error')
-            }
-        })
+// Show appropriate form based on mode
+function showForm(mode) {
+    const signupForm = document.getElementById('signupForm')
+    const forgotForm = document.getElementById('forgotForm')
+    const successMessage = document.getElementById('successMessage')
+    
+    if (mode === 'forgot') {
+        if (signupForm) signupForm.style.display = 'none'
+        if (forgotForm) forgotForm.style.display = 'block'
+        if (successMessage) successMessage.style.display = 'none'
+    } else {
+        if (signupForm) signupForm.style.display = 'block'
+        if (forgotForm) forgotForm.style.display = 'none'
+        if (successMessage) successMessage.style.display = 'none'
     }
 }
 
-// Update setupSignupForm function
+// Setup signup form
 function setupSignupForm() {
     const signupForm = document.getElementById('signupFormElement')
     const signupBtn = document.getElementById('signupBtn')
@@ -122,4 +124,56 @@ function setupSignupForm() {
             showMessage(result.error || 'Signup failed. Please try again.', 'error')
         }
     })
+    
+    // Google signup button - Coming Soon
+    const googleBtn = document.querySelector('.social-btn.google')
+    if (googleBtn) {
+        googleBtn.addEventListener('click', function() {
+            showMessage('Google signup coming soon!', 'info')
+        })
+    }
 }
+
+// Setup forgot password form
+function setupForgotForm() {
+    const forgotForm = document.getElementById('forgotFormElement')
+    const resetBtn = document.getElementById('resetBtn')
+    const loadingOverlay = document.getElementById('loadingOverlay')
+    
+    if (!forgotForm) return
+    
+    forgotForm.addEventListener('submit', async function(e) {
+        e.preventDefault()
+        
+        const email = document.getElementById('forgotEmail').value.trim()
+        
+        if (!email) {
+            showMessage('Please enter your email address', 'error')
+            return
+        }
+        
+        // Show loading
+        resetBtn.disabled = true
+        loadingOverlay.classList.add('active')
+        
+        try {
+            // Note: For password reset, you'll need to handle this properly
+            // This is a simplified version
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            
+            // Hide loading
+            resetBtn.disabled = false
+            loadingOverlay.classList.remove('active')
+            
+            // Show success message
+            showSuccessMessage()
+            
+        } catch (error) {
+            resetBtn.disabled = false
+            loadingOverlay.classList.remove('active')
+            showMessage('Failed to send reset email. Please try again.', 'error')
+        }
+    })
+}
+
+// Setup
