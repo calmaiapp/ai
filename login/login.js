@@ -1,4 +1,4 @@
-import { signIn, getSession, signInWithGoogle } from '../utils/auth.js'
+import { signIn, getSession } from '../utils/auth.js'
 
 // Global error handler
 if (typeof window !== 'undefined') {
@@ -74,16 +74,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
     }
     
-    // Google login button
+    // Google login button - Coming Soon
     if (googleBtn) {
-        googleBtn.addEventListener('click', async function() {
-            googleBtn.disabled = true
-            const result = await signInWithGoogle()
-            
-            if (!result.success) {
-                googleBtn.disabled = false
-                showMessage('Google login failed: ' + result.error, 'error')
-            }
+        googleBtn.addEventListener('click', function() {
+            showMessage('Google login coming soon!', 'info')
         })
     }
 })
@@ -102,7 +96,75 @@ async function checkAuthStatus() {
     }
 }
 
-// Show message function (keep existing)
+// Show message function
 function showMessage(message, type) {
-    // ... existing showMessage code ...
+    // Remove any existing message
+    const existingMsg = document.querySelector('.message-alert')
+    if (existingMsg) existingMsg.remove()
+    
+    // Create message element
+    const msgEl = document.createElement('div')
+    msgEl.className = `message-alert ${type}`
+    msgEl.textContent = message
+    
+    // Add styles
+    msgEl.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+        max-width: 90%;
+        text-align: center;
+    `
+    
+    // Set colors based on type
+    if (type === 'success') {
+        msgEl.style.backgroundColor = '#10b981'
+    } else if (type === 'error') {
+        msgEl.style.backgroundColor = '#ef4444'
+    } else {
+        msgEl.style.backgroundColor = '#0ea5e9'
+    }
+    
+    // Add animation
+    const style = document.createElement('style')
+    style.textContent = `
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+    `
+    document.head.appendChild(style)
+    
+    document.body.appendChild(msgEl)
+    
+    // Remove message after 3 seconds
+    setTimeout(() => {
+        if (msgEl.parentNode) {
+            msgEl.style.animation = 'slideUp 0.3s ease'
+            
+            // Add slideUp animation
+            const slideUpStyle = document.createElement('style')
+            slideUpStyle.textContent = `
+                @keyframes slideUp {
+                    from { top: 20px; opacity: 1; }
+                    to { top: -50px; opacity: 0; }
+                }
+            `
+            document.head.appendChild(slideUpStyle)
+            
+            setTimeout(() => {
+                if (msgEl.parentNode) {
+                    msgEl.remove()
+                }
+            }, 300)
+        }
+    }, 3000)
 }
