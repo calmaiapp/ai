@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calm</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #0ea5e9;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="user-info" id="userInfo">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+    
+    <div class="app-container">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <button class="menu-btn" aria-label="Menu">
+                <div class="menu-icon">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </button>
+            
+            <div class="app-title">Calm</div>
+            
+            <button class="info-btn" aria-label="Info">
+                <i class="fas fa-info-circle"></i>
+            </button>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Initial welcome screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-content">
+                    <h1>A Calm Place To Think And Talk</h1>
+                    <p class="subtitle">Send a message<br>eg. Hello</p>
+                </div>
+            </div>
+
+            <!-- Messages container (hidden initially) -->
+            <div class="messages-container" id="messagesContainer">
+                <!-- Messages will appear here after first message -->
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <input 
+                type="text" 
+                id="messageInput"
+                placeholder="Type your message..."
+                class="message-input"
+            >
+            <button class="send-btn" id="sendBtn" aria-label="Send">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Simple menu (hidden by default) -->
+    <div class="simple-menu" id="simpleMenu">
+        <div class="menu-content">
+            <button class="menu-close" id="menuClose">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Calm</h3>
+            <p>Just talk. Nothing else.</p>
+            <div class="user-details" id="userDetails">
+                <!-- User info will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
