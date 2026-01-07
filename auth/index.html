@@ -10,6 +10,45 @@
         * {
             -webkit-tap-highlight-color: transparent;
         }
+        
+        .terms-agreement {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: #475569;
+        }
+        
+        .terms-agreement input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .terms-links {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        
+        .terms-links a {
+            color: #0ea5e9;
+            text-decoration: none;
+            font-size: 13px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .terms-links a:hover {
+            background: #f0f9ff;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -81,7 +120,7 @@
                                 autocomplete="new-password"
                             >
                             <div class="password-hint">
-                                <span>Must be at least 8 characters</span>
+                                <span>Must be at least 6 characters</span>
                             </div>
                         </div>
 
@@ -100,8 +139,15 @@
                         <!-- Terms -->
                         <div class="terms-agreement">
                             <input type="checkbox" id="terms" name="terms" required>
-                            <label for="terms">
-                                I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+                            <label for="terms" style="line-height: 1.4;">
+                                I agree to the 
+                                <a href="#terms" style="color: #0ea5e9; text-decoration: none;">
+                                    Terms & Conditions
+                                </a> 
+                                and 
+                                <a href="#privacy" style="color: #0ea5e9; text-decoration: none;">
+                                    Privacy Policy
+                                </a>
                             </label>
                         </div>
 
