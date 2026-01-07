@@ -1,4 +1,4 @@
-import { signUp } from '../utils/auth.js'
+import { signUp, updateSecurityQuestion } from '../utils/auth.js'
 
 // Global error handler
 if (typeof window !== 'undefined') {
@@ -14,55 +14,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setupGoogleSignup()
     setupTermsModals()
     setupPasswordToggle()
-    
-    // Add security question section
-    addSecurityQuestionSection()
 })
 
-// Add security question section to form
-function addSecurityQuestionSection() {
-    const form = document.getElementById('signupFormElement')
-    if (!form) return
-    
-    // Insert after password field
-    const passwordField = document.getElementById('signupPassword')
-    if (passwordField) {
-        const securityHtml = `
-            <div class="security-question-section" style="margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 12px;">
-                <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #1e293b;">
-                    🔒 Security Question (Optional)
-                </h3>
-                <p style="font-size: 14px; color: #64748b; margin-bottom: 15px;">
-                    This will help you recover your password if you forget it.
-                </p>
-                <div class="form-group">
-                    <label for="securityQuestion">Security Question</label>
-                    <input 
-                        type="text" 
-                        id="securityQuestion" 
-                        placeholder="e.g., What was your first pet's name?"
-                        autocomplete="off"
-                    >
-                </div>
-                <div class="form-group">
-                    <label for="securityAnswer">Answer</label>
-                    <input 
-                        type="text" 
-                        id="securityAnswer" 
-                        placeholder="Your answer"
-                        autocomplete="off"
-                    >
-                </div>
-                <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">
-                    You can skip this, but password recovery will be difficult.
-                </p>
-            </div>
-        `
-        passwordField.parentElement.insertAdjacentHTML('afterend', securityHtml)
-    }
-}
-
-// Setup signup form
+// Setup signup form - SIMPLIFIED (no security Q/A here)
 function setupSignupForm() {
     const signupForm = document.getElementById('signupFormElement')
     const signupBtn = document.getElementById('signupBtn')
@@ -70,26 +24,12 @@ function setupSignupForm() {
     
     if (!signupForm) return
     
-    // Remove Full Name field if exists
-    const nameField = document.getElementById('signupName')
-    if (nameField) {
-        nameField.parentElement.style.display = 'none'
-    }
-    
-    // Remove Confirm Password field if exists
-    const confirmField = document.getElementById('confirmPassword')
-    if (confirmField) {
-        confirmField.parentElement.style.display = 'none'
-    }
-    
     signupForm.addEventListener('submit', async function(e) {
         e.preventDefault()
         
         const email = document.getElementById('signupEmail').value.trim()
         const username = document.getElementById('username')?.value.trim()
         const password = document.getElementById('signupPassword').value
-        const securityQuestion = document.getElementById('securityQuestion')?.value.trim() || ''
-        const securityAnswer = document.getElementById('securityAnswer')?.value.trim() || ''
         const terms = document.getElementById('terms').checked
         
         // Validate inputs
@@ -112,32 +52,255 @@ function setupSignupForm() {
         signupBtn.disabled = true
         loadingOverlay.classList.add('active')
         
-        // Sign up with username and security question
-        const result = await signUp(email, password, username, securityQuestion, securityAnswer)
+        // Sign up WITHOUT security question initially
+        const result = await signUp(email, password, username)
         
         // Hide loading
         signupBtn.disabled = false
         loadingOverlay.classList.remove('active')
         
         if (result.success) {
-            showMessage('Account created successfully! Redirecting...', 'success')
-            
-            // Redirect to HOME page after 2 seconds
-            setTimeout(() => {
-                window.location.href = '/ai/home/index.html'
-            }, 2000)
+            if (result.autoLoggedIn) {
+                // Show security setup modal after successful signup
+                showSecuritySetupModal(username)
+            } else {
+                showMessage(result.message || 'Account created! Please login.', 'success')
+                setTimeout(() => {
+                    window.location.href = '/ai/login/index.html'
+                }, 2000)
+            }
         } else {
             showMessage(result.error || 'Signup failed. Please try again.', 'error')
         }
     })
+}
+
+// Show security setup modal AFTER account creation
+function showSecuritySetupModal(username) {
+    const modalHTML = `
+        <div class="modal-overlay active" id="securitySetupModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🔒 Set Security Question</h2>
+                </div>
+                <div class="modal-body">
+                    <p style="color: #64748b; margin-bottom: 20px;">
+                        This will help you recover your password if you forget it.
+                        <br><strong>You can skip, but password recovery will be impossible.</strong>
+                    </p>
+                    
+                    <div id="securityForm">
+                        <div class="form-group">
+                            <label for="modalSecurityQuestion">Security Question</label>
+                            <input 
+                                type="text" 
+                                id="modalSecurityQuestion" 
+                                placeholder="e.g., What was your first pet's name?"
+                                autocomplete="off"
+                                style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="modalSecurityAnswer">Answer</label>
+                            <input 
+                                type="text" 
+                                id="modalSecurityAnswer" 
+                                placeholder="Your answer (remember this!)"
+                                autocomplete="off"
+                                style="width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 8px;"
+                            >
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; margin-top: 25px;">
+                            <button class="auth-btn" id="saveSecurityBtn" style="flex: 1; padding: 12px;">
+                                Save & Continue
+                            </button>
+                            <button class="auth-btn secondary" id="skipSecurityBtn" style="flex: 1; padding: 12px; background: #f1f5f9; color: #0ea5e9;">
+                                Skip for Now
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="securitySuccess" style="display: none; text-align: center; padding: 20px 0;">
+                        <div class="success-icon" style="margin: 20px auto;">
+                            <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
+                                <circle cx="30" cy="30" r="30" fill="#10b981" fill-opacity="0.1"/>
+                                <path d="M20 30L27.5 37.5L40 25" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <h3 style="color: #10b981; margin-bottom: 10px;">Security Question Set!</h3>
+                        <p style="color: #64748b;">Your account is now more secure. Redirecting to home...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
     
-    // Google signup button - Coming Soon
-    const googleBtn = document.querySelector('.social-btn.google')
-    if (googleBtn) {
-        googleBtn.addEventListener('click', function() {
-            showMessage('Google signup coming soon!', 'info')
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHTML)
+    
+    // Add modal styles
+    const style = document.createElement('style')
+    style.textContent = `
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.3s ease;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 400;
+            color: #1e293b;
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .modal-body .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .modal-body .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+    `
+    document.head.appendChild(style)
+    
+    // Setup modal events
+    setupSecurityModalEvents(username)
+}
+
+// Setup security modal events
+function setupSecurityModalEvents(username) {
+    const saveBtn = document.getElementById('saveSecurityBtn')
+    const skipBtn = document.getElementById('skipSecurityBtn')
+    const modal = document.getElementById('securitySetupModal')
+    
+    // Save security question
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async function() {
+            const question = document.getElementById('modalSecurityQuestion').value.trim()
+            const answer = document.getElementById('modalSecurityAnswer').value.trim()
+            
+            if (!question || !answer) {
+                showMessage('Please fill in both question and answer', 'error')
+                return
+            }
+            
+            if (question.length < 5) {
+                showMessage('Please enter a proper security question', 'error')
+                return
+            }
+            
+            if (answer.length < 2) {
+                showMessage('Answer should be at least 2 characters', 'error')
+                return
+            }
+            
+            saveBtn.disabled = true
+            saveBtn.textContent = 'Saving...'
+            
+            // Call API to save security question
+            const result = await updateSecurityQuestion(username, question, answer)
+            
+            if (result.success) {
+                // Show success
+                document.getElementById('securityForm').style.display = 'none'
+                document.getElementById('securitySuccess').style.display = 'block'
+                
+                // Redirect to home after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/ai/home/index.html'
+                }, 2000)
+            } else {
+                saveBtn.disabled = false
+                saveBtn.textContent = 'Save & Continue'
+                showMessage(result.error || 'Failed to save security question', 'error')
+            }
         })
     }
+    
+    // Skip security question
+    if (skipBtn) {
+        skipBtn.addEventListener('click', function() {
+            showMessage('Skipping security question. Redirecting...', 'info')
+            
+            // Close modal with animation
+            modal.style.animation = 'fadeOut 0.3s ease'
+            setTimeout(() => {
+                if (modal.parentNode) {
+                    modal.remove()
+                }
+                
+                // Redirect to home
+                window.location.href = '/ai/home/index.html'
+            }, 300)
+        })
+    }
+    
+    // Close when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            // Don't allow closing by clicking outside - force choice
+            showMessage('Please choose: Save or Skip security question', 'info')
+        }
+    })
 }
 
 // Setup Google signup (Coming Soon)
@@ -419,44 +582,6 @@ function setupTermsModals() {
             to {
                 opacity: 1;
                 transform: translateY(0) scale(1);
-            }
-        }
-        
-        @keyframes fadeOut {
-            from { 
-                opacity: 1; 
-                backdrop-filter: blur(10px);
-            }
-            to { 
-                opacity: 0; 
-                backdrop-filter: blur(0px);
-            }
-        }
-        
-        @keyframes slideDown {
-            from {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-            to {
-                opacity: 0;
-                transform: translateY(40px) scale(0.95);
-            }
-        }
-        
-        @media (max-width: 600px) {
-            .modal-content {
-                width: 95%;
-                max-height: 85vh;
-                border-radius: 16px;
-            }
-            
-            .modal-header {
-                padding: 20px 24px;
-            }
-            
-            .modal-body {
-                padding: 24px;
             }
         }
     `
