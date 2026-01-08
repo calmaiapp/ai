@@ -10,30 +10,8 @@ async function initApp() {
     const result = await getUser()
     
     if (result.success && result.user) {
-        // User is logged in
-        app.innerHTML = `
-            <h1 style="font-size: 32px; margin-bottom: 16px; color: #1e293b;">
-                Welcome back
-            </h1>
-            <p style="color: #64748b; margin-bottom: 32px;">
-                Ready for your next peaceful moment?
-            </p>
-        `
-        
-        authButtons.innerHTML = `
-            <a href="/ai/main/index.html" class="btn btn-primary">
-                Go to Dashboard
-            </a>
-            <button onclick="handleLogout()" class="btn btn-secondary">
-                Logout
-            </button>
-        `
-        
-        userInfo.innerHTML = `
-            <p><strong>Email:</strong> ${result.user.email}</p>
-            <p><small>Logged in successfully</small></p>
-        `
-        userInfo.classList.add('active')
+        // User is logged in, redirect to HOME page
+        window.location.href = '/ai/home/index.html'
         
     } else {
         // User is not logged in
@@ -56,7 +34,7 @@ async function initApp() {
             </a>
         `
         
-        userInfo.classList.remove('active')
+        if (userInfo) userInfo.classList.remove('active')
     }
 }
 
