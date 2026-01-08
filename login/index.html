@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login • Calm</title>
-    <link rel="stylesheet" href="../style.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/ai/style.css">
+    <link rel="stylesheet" href="/ai/login/style.css">
+    <link rel="icon" href="/ai/logo.png" type="image/png">
     <style>
         * {
             -webkit-tap-highlight-color: transparent;
@@ -15,7 +16,7 @@
 <body>
     <div class="auth-container">
         <!-- Back to Home -->
-        <a href="../index.html" class="back-home">
+        <a href="/ai/index.html" class="back-home">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M15 10H5" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round"/>
                 <path d="M10 15L5 10L10 5" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -41,21 +42,21 @@
             <!-- Login Form -->
             <form class="auth-form" id="loginForm">
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label for="email">Username or Email</label>
                     <input 
-                        type="email" 
+                        type="text" 
                         id="email" 
                         name="email"
-                        placeholder="you@example.com"
+                        placeholder="username or email@example.com"
                         required
-                        autocomplete="email"
+                        autocomplete="username"
                     >
                 </div>
 
                 <div class="form-group">
                     <div class="label-row">
                         <label for="password">Password</label>
-                        <a href="../auth/index.html?forgot" class="forgot-link">Forgot password?</a>
+                        <a href="#forgot" class="forgot-link">Forgot password?</a>
                     </div>
                     <input 
                         type="password" 
@@ -102,7 +103,7 @@
 
                 <!-- Sign Up Link -->
                 <div class="auth-footer">
-                    <p>Don't have an account? <a href="../auth/index.html?signup" class="auth-link">Sign up</a></p>
+                    <p>Don't have an account? <a href="/ai/auth/index.html" class="auth-link">Sign up</a></p>
                 </div>
             </form>
 
@@ -114,11 +115,11 @@
 
         <!-- Footer Note -->
         <div class="auth-note">
-            <p>By continuing, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a></p>
+            <p>By continuing, you agree to our <a href="#terms">Terms</a> and <a href="#privacy">Privacy Policy</a></p>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="login.js"></script>
+    <script type="module" src="/ai/login/login.js"></script>
 </body>
 </html>
