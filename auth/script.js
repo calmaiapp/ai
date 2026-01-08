@@ -50,6 +50,7 @@ function setupSignupForm() {
         
         // Show loading
         signupBtn.disabled = true
+        signupBtn.innerHTML = '<span>Creating Account...</span>'
         loadingOverlay.classList.add('active')
         
         // Sign up WITHOUT security question initially
@@ -57,6 +58,7 @@ function setupSignupForm() {
         
         // Hide loading
         signupBtn.disabled = false
+        signupBtn.innerHTML = '<span>Create Account</span><svg class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16.6667 10H3.33337" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M11.6667 5L16.6667 10L11.6667 15" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         loadingOverlay.classList.remove('active')
         
         if (result.success) {
@@ -70,7 +72,13 @@ function setupSignupForm() {
                 }, 2000)
             }
         } else {
-            showMessage(result.error || 'Signup failed. Please try again.', 'error')
+            if (result.rateLimited) {
+                showMessage(result.error, 'error')
+            } else if (result.duplicate) {
+                showMessage('Username or email already exists. Please choose different ones.', 'error')
+            } else {
+                showMessage(result.error || 'Signup failed. Please try again.', 'error')
+            }
         }
     })
 }
@@ -295,12 +303,14 @@ function setupSecurityModalEvents(username) {
     }
     
     // Close when clicking outside
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            // Don't allow closing by clicking outside - force choice
-            showMessage('Please choose: Save or Skip security question', 'info')
-        }
-    })
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                // Don't allow closing by clicking outside - force choice
+                showMessage('Please choose: Save or Skip security question', 'info')
+            }
+        })
+    }
 }
 
 // Setup Google signup (Coming Soon)
