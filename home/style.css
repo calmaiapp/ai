@@ -360,3 +360,88 @@ body {
         right: 10px;
     }
 }
+
+/* Dark Theme Support */
+.theme-dark .app-container {
+    background: #1e293b;
+    color: #f1f5f9;
+}
+
+.theme-dark .top-bar {
+    background: #1e293b;
+    border-bottom-color: #334155;
+}
+
+.theme-dark .app-title {
+    color: #38bdf8;
+}
+
+.theme-dark .menu-icon span {
+    background: #38bdf8;
+}
+
+.theme-dark .info-btn {
+    color: #38bdf8;
+}
+
+.theme-dark .welcome-screen {
+    background: #0f172a;
+}
+
+.theme-dark .welcome-content h1 {
+    color: #38bdf8;
+}
+
+.theme-dark .subtitle {
+    color: #94a3b8;
+}
+
+.theme-dark .response-message {
+    background: #334155;
+    color: #f1f5f9;
+}
+
+.theme-dark .input-area {
+    background: #1e293b;
+    border-top-color: #334155;
+}
+
+.theme-dark .message-input {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+}
+
+.theme-dark .message-input:focus {
+    background: #0f172a;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.theme-dark .message-input::placeholder {
+    color: #64748b;
+}
+
+.theme-dark .simple-menu {
+    background: rgba(15, 23, 42, 0.95);
+}
+
+.theme-dark .menu-content h3 {
+    color: #38bdf8;
+}
+
+.theme-dark .menu-content p {
+    color: #94a3b8;
+}
+
+.theme-dark .user-details {
+    border-top-color: #334155;
+}
+
+.theme-dark .user-details p {
+    color: #cbd5e1;
+}
+
+.theme-dark .logout-btn:hover {
+    background: #1e293b;
+}
