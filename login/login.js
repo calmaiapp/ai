@@ -493,12 +493,8 @@ function setupModalEvents() {
 }
 
 // Show forgot password modal
+modal
 function showForgotPasswordModal() {
-    const modal = document.getElementById('forgotModal')
-    if (modal) {
-        modal.style.display = 'flex'
-        // Focus on username input
-        function showForgotPasswordModal() {
     const modal = document.getElementById('forgotModal')
     if (modal) {
         modal.style.display = 'flex'
