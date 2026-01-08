@@ -251,3 +251,37 @@ input, textarea, select {
         font-size: 13px;
     }
 }
+
+/* Theme support */
+.theme-dark {
+    background: #0f172a;
+    color: #f1f5f9;
+}
+
+.theme-dark .hero {
+    background: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
+}
+
+.theme-dark .logo {
+    color: #38bdf8;
+}
+
+.theme-dark .tagline {
+    color: #94a3b8;
+}
+
+.theme-dark .btn-secondary {
+    background: #1e293b;
+    color: #38bdf8;
+    border-color: #334155;
+}
+
+.theme-dark .btn-secondary:hover {
+    background: #334155;
+    border-color: #38bdf8;
+}
+
+.theme-dark #user-info {
+    background: #1e293b;
+    color: #f1f5f9;
+}
