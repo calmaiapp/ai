@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show loading
             loginBtn.disabled = true
+            loginBtn.innerHTML = '<span>Signing In...</span>'
             loadingOverlay.classList.add('active')
             
             // Sign in with username or email
@@ -103,6 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Hide loading
             loginBtn.disabled = false
+            loginBtn.innerHTML = '<span>Sign In</span><svg class="btn-icon" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16.6667 10H3.33337" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M11.6667 5L16.6667 10L11.6667 15" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
             loadingOverlay.classList.remove('active')
             
             if (result.success) {
@@ -120,7 +122,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.href = '/ai/home/index.html'
                 }, 1500)
             } else {
-                showMessage(result.error || 'Login failed. Please try again.', 'error')
+                if (result.rateLimited) {
+                    showMessage(result.error, 'error')
+                } else if (result.authError) {
+                    showMessage('Invalid email or password', 'error')
+                } else {
+                    showMessage(result.error || 'Login failed. Please try again.', 'error')
+                }
             }
         })
     }
@@ -474,7 +482,11 @@ function setupModalEvents() {
                 document.getElementById('step3').style.display = 'none'
                 document.getElementById('step4').style.display = 'block'
             } else {
-                showMessage(result.error || 'Password reset failed', 'error')
+                if (result.locked) {
+                    showMessage(result.error, 'error')
+                } else {
+                    showMessage(result.error || 'Password reset failed', 'error')
+                }
             }
         })
     }
@@ -482,6 +494,11 @@ function setupModalEvents() {
 
 // Show forgot password modal
 function showForgotPasswordModal() {
+    const modal = document.getElementById('forgotModal')
+    if (modal) {
+        modal.style.display = 'flex'
+        // Focus on username input
+        function showForgotPasswordModal() {
     const modal = document.getElementById('forgotModal')
     if (modal) {
         modal.style.display = 'flex'
