@@ -1,294 +1,223 @@
-import { getUser, signOut, getSession } from '../utils/auth.js'
+import { getCurrentUser, signOut } from '/ai/utils/auth-core.js'
+import { showMessage, showError } from '/ai/components/messages.js'
+import chatCore from '/ai/home/chat-core.js'
+import chatUI from '/ai/home/chat-ui.js'
 
-// Enhanced auth check with error handling
-async function checkAuth() {
-    try {
-        const result = await getSession()
-        
-        if (!result.success) {
-            // Check if it's a rate limit error
-            if (result.rateLimited) {
-                showMessage('Too many requests. Please wait a minute.', 'error')
-                setTimeout(() => {
-                    window.location.href = '/ai/login/index.html'
-                }, 3000)
-                return null
-            }
-            
-            // Not logged in, redirect to login
-            window.location.href = '/ai/login/index.html'
-            return null
-        }
-        
-        if (!result.session) {
-            window.location.href = '/ai/login/index.html'
-            return null
-        }
-        
-        const userResult = await getUser()
-        if (userResult.success && userResult.user) {
-            return userResult.user
-        }
-        
-        // If getUser fails but session exists, still allow access
-        return result.session.user
-    } catch (error) {
-        console.log('Auth check error:', error)
-        window.location.href = '/ai/login/index.html'
-        return null
-    }
-}
-
-// Add showMessage function
-function showMessage(message, type) {
-    const existingMsg = document.querySelector('.message-alert')
-    if (existingMsg) existingMsg.remove()
-    
-    const msgEl = document.createElement('div')
-    msgEl.className = `message-alert ${type}`
-    msgEl.textContent = message
-    
-    msgEl.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 12px 24px;
-        border-radius: 8px;
-        color: white;
-        font-size: 14px;
-        font-weight: 500;
-        z-index: 1000;
-        animation: slideDown 0.3s ease;
-        max-width: 90%;
-        text-align: center;
-    `
-    
-    if (type === 'success') {
-        msgEl.style.backgroundColor = '#10b981'
-    } else if (type === 'error') {
-        msgEl.style.backgroundColor = '#ef4444'
-    } else {
-        msgEl.style.backgroundColor = '#0ea5e9'
-    }
-    
-    const style = document.createElement('style')
-    style.textContent = `
-        @keyframes slideDown {
-            from { top: -50px; opacity: 0; }
-            to { top: 20px; opacity: 1; }
-        }
-    `
-    document.head.appendChild(style)
-    
-    document.body.appendChild(msgEl)
-    
-    setTimeout(() => {
-        if (msgEl.parentNode) {
-            msgEl.style.animation = 'slideUp 0.3s ease'
-            const slideUpStyle = document.createElement('style')
-            slideUpStyle.textContent = `
-                @keyframes slideUp {
-                    from { top: 20px; opacity: 1; }
-                    to { top: -50px; opacity: 0; }
-                }
-            `
-            document.head.appendChild(slideUpStyle)
-            
-            setTimeout(() => {
-                if (msgEl.parentNode) {
-                    msgEl.remove()
-                }
-            }, 300)
-        }
-    }, 3000)
-}
-
+// Initialize chat when DOM is loaded
 document.addEventListener('DOMContentLoaded', async function() {
-    // Check authentication
-    const user = await checkAuth()
-    if (!user) return
-    
-    // Update user info
-    updateUserInfo(user)
-    
-    // Elements
-    const welcomeScreen = document.getElementById('welcomeScreen');
-    const messagesContainer = document.getElementById('messagesContainer');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const menuBtn = document.querySelector('.menu-btn');
-    const infoBtn = document.querySelector('.info-btn');
-    const simpleMenu = document.getElementById('simpleMenu');
-    const menuClose = document.getElementById('menuClose');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userDetails = document.getElementById('userDetails');
-    
-    let firstMessageSent = false;
-    
-    // Update user details in menu
-    if (userDetails) {
-        userDetails.innerHTML = `
-            <p><strong>Username:</strong> ${user.user_metadata?.username || user.email.split('@')[0]}</p>
-            <p><strong>Email:</strong> ${user.email}</p>
-            <p><small>Logged in</small></p>
-        `
+    try {
+        // Check authentication first
+        const authResult = await getCurrentUser()
+        
+        if (!authResult.success || !authResult.user) {
+            // Not authenticated, redirect to login
+            showMessage('Please login to continue', 'error')
+            setTimeout(() => {
+                window.location.href = '/ai/login/index.html'
+            }, 1500)
+            return
+        }
+        
+        // Initialize chat UI
+        const ui = chatUI.setupUI()
+        
+        // Initialize chat core
+        await chatCore.start()
+        
+        // Setup event listeners for UI
+        setupEventListeners(ui.elements, authResult.user)
+        
+        // Update user info
+        updateUserInfo(authResult.user)
+        
+    } catch (error) {
+        console.error('Home initialization error:', error)
+        showError('Failed to initialize chat')
+        
+        // Fallback to login
+        setTimeout(() => {
+            window.location.href = '/ai/login/index.html'
+        }, 2000)
     }
-    
-    // Simple responses
-    const getSimpleResponse = () => {
-        const responses = [
-            "I'm here.",
-            "Hello.",
-            "Hi.",
-            "Hey.",
-            "What's on your mind?",
-            "Tell me more.",
-            "Go on.",
-            "Interesting.",
-            "I'm listening.",
-            "Okay.",
-            "Yeah.",
-            "Right.",
-            "Sure.",
-            "Absolutely.",
-            "Got it.",
-            "Understand.",
-            "Continue.",
-            "And?",
-            "Then?",
-            "So?"
-        ];
-        return responses[Math.floor(Math.random() * responses.length)];
-    };
+})
+
+function setupEventListeners(elements, user) {
+    if (!elements) return
     
     // Send message
-    const sendMessage = () => {
-        const text = messageInput.value.trim();
-        if (!text) return;
-        
-        // First message ever
-        if (!firstMessageSent) {
-            firstMessageSent = true;
-            
-            // Start transition effect
-            welcomeScreen.classList.add('blurred');
-            
-            // After blur animation, hide welcome screen
-            setTimeout(() => {
-                welcomeScreen.classList.add('hidden');
-                
-                // Show messages container
-                setTimeout(() => {
-                    messagesContainer.style.display = 'flex';
-                }, 100);
-            }, 800);
-        }
-        
-        // Add user message
-        addMessage(text, 'user');
-        
-        // Clear input
-        messageInput.value = '';
-        
-        // Focus back on input
-        messageInput.focus();
-        
-        // Simple random delay for response
-        setTimeout(() => {
-            addMessage(getSimpleResponse(), 'response');
-        }, 300 + Math.random() * 700);
-    };
+    if (elements.sendBtn && elements.input) {
+        elements.sendBtn.addEventListener('click', () => sendMessage(elements.input))
+        elements.input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage(elements.input)
+            }
+        })
+    }
     
-    // Add message to container
-    const addMessage = (text, type) => {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type === 'user' ? 'user-message' : 'response-message'}`;
-        messageDiv.textContent = text;
-        
-        messagesContainer.appendChild(messageDiv);
-        
-        // Scroll to bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    };
-    
-    // Event Listeners
-    sendBtn.addEventListener('click', sendMessage);
-    
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-    
-    // Menu button
-    menuBtn.addEventListener('click', () => {
-        simpleMenu.classList.add('active');
-    });
+    // Menu toggle
+    if (elements.menuBtn) {
+        elements.menuBtn.addEventListener('click', () => {
+            chatUI.toggleMenu()
+            // Update user details in menu
+            updateUserDetails(user)
+        })
+    }
     
     // Info button
-    infoBtn.addEventListener('click', () => {
-        addMessage("This is Calm. Just type. Nothing else.", 'response');
-    });
+    if (elements.infoBtn) {
+        elements.infoBtn.addEventListener('click', () => {
+            showInfoMessage()
+        })
+    }
     
-    // Close menu
-    menuClose.addEventListener('click', () => {
-        simpleMenu.classList.remove('active');
-    });
+    // Menu close
+    if (elements.menuClose) {
+        elements.menuClose.addEventListener('click', () => {
+            chatUI.closeMenu()
+        })
+    }
     
-    // Close menu by clicking outside
-    simpleMenu.addEventListener('click', (e) => {
-        if (e.target === simpleMenu) {
-            simpleMenu.classList.remove('active');
-        }
-    });
+    // Logout
+    if (elements.logoutBtn) {
+        elements.logoutBtn.addEventListener('click', handleLogout)
+    }
     
-    // Logout button
-    logoutBtn.addEventListener('click', async () => {
-        const result = await signOut()
-        if (result.success) {
-            window.location.href = '/ai/index.html'
-        } else {
-            showMessage('Logout failed: ' + result.error, 'error')
-        }
+    // Listen for custom events
+    window.addEventListener('show-info', showInfoMessage)
+    window.addEventListener('logout-requested', handleLogout)
+    window.addEventListener('clear-chat-history', () => {
+        chatCore.clearHistory()
     })
-    
-    // Focus input on load
-    messageInput.focus();
-    
-    // Auto-response if user is idle for 30 seconds
-    let idleTimer;
-    const resetIdleTimer = () => {
-        clearTimeout(idleTimer);
-        if (firstMessageSent) {
-            idleTimer = setTimeout(() => {
-                if (messagesContainer.children.length > 0) {
-                    addMessage("Still there?", 'response');
-                }
-            }, 30000); // 30 seconds
-        }
-    };
-    
-    // Reset timer on any interaction
-    ['keydown', 'mousedown', 'touchstart'].forEach(event => {
-        document.addEventListener(event, resetIdleTimer);
-    });
-    
-    // Start idle timer
-    resetIdleTimer();
-});
+}
 
-// Update user info in top right
-function updateUserInfo(user) {
-    const userAvatar = document.getElementById('userAvatar')
-    const username = user.user_metadata?.username || user.email.split('@')[0]
+async function sendMessage(inputElement) {
+    if (!inputElement) return
     
-    if (userAvatar) {
-        userAvatar.textContent = username.charAt(0).toUpperCase()
+    const text = inputElement.value.trim()
+    if (!text) return
+    
+    try {
+        // Clear input
+        inputElement.value = ''
+        
+        // Send message via chat core
+        await chatCore.sendMessage(text)
+        
+    } catch (error) {
+        console.error('Send message error:', error)
+        showError('Failed to send message')
+        
+        // Restore message if sending failed
+        inputElement.value = text
+        inputElement.focus()
+    }
+}
+
+function updateUserInfo(user) {
+    if (!user) return
+    
+    const username = user.user_metadata?.username || user.email.split('@')[0]
+    const avatar = document.getElementById('userAvatar')
+    
+    if (avatar) {
+        avatar.textContent = username.charAt(0).toUpperCase()
         
         // Set random background color
         const colors = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444']
         const randomColor = colors[Math.floor(Math.random() * colors.length)]
-        userAvatar.style.backgroundColor = randomColor
+        avatar.style.backgroundColor = randomColor
+    }
+    
+    // Update chat UI user info
+    chatUI.updateUserAvatar(username)
+}
+
+function updateUserDetails(user) {
+    const detailsElement = document.getElementById('userDetails')
+    if (!detailsElement || !user) return
+    
+    const username = user.user_metadata?.username || user.email.split('@')[0]
+    
+    detailsElement.innerHTML = `
+        <div style="margin-bottom: 15px;">
+            <div style="font-weight: 500; color: #1e293b; margin-bottom: 5px;">${username}</div>
+            <div style="font-size: 14px; color: #64748b;">${user.email}</div>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">
+            <div>Active now</div>
+            <div style="margin-top: 10px;">
+                <button id="clearChatBtn" style="
+                    padding: 8px 12px;
+                    background: #f1f5f9;
+                    color: #64748b;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    width: 100%;
+                ">
+                    Clear Chat History
+                </button>
+            </div>
+        </div>
+    `
+    
+    // Add clear chat button listener
+    setTimeout(() => {
+        const clearChatBtn = document.getElementById('clearChatBtn')
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', () => {
+                showMessage('Clear chat history? This will reload the page.', 'warning')
+                setTimeout(() => {
+                    chatCore.clearHistory()
+                }, 2000)
+            })
+        }
+    }, 100)
+}
+
+async function handleLogout() {
+    try {
+        const result = await signOut()
+        if (result.success) {
+            showMessage('Signed out successfully', 'success')
+            setTimeout(() => {
+                window.location.href = '/ai/index.html'
+            }, 1500)
+        } else {
+            showError('Logout failed: ' + result.error)
+        }
+    } catch (error) {
+        showError('Logout error: ' + error.message)
     }
 }
+
+function showInfoMessage() {
+    const infoMessage = "This is Calm. A peaceful place to think and talk. Just type what's on your mind."
+    
+    // Add as a system message
+    const messagesContainer = document.getElementById('messagesContainer')
+    if (messagesContainer) {
+        const messageDiv = document.createElement('div')
+        messageDiv.className = 'message response-message'
+        messageDiv.textContent = infoMessage
+        messageDiv.style.cssText = `
+            align-self: center;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            font-style: italic;
+            max-width: 90%;
+            text-align: center;
+        `
+        messagesContainer.appendChild(messageDiv)
+        
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight
+    }
+}
+
+// Export functions for chat-core.js to use
+window.chatUI = chatUI
+window.chatCore = chatCore
