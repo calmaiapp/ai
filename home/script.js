@@ -1,19 +1,107 @@
 import { getUser, signOut, getSession } from '../utils/auth.js'
 
-// Auth check
+// Enhanced auth check with error handling
 async function checkAuth() {
-    const result = await getSession()
-    if (!result.success || !result.session) {
-        // Not logged in, redirect to login
+    try {
+        const result = await getSession()
+        
+        if (!result.success) {
+            // Check if it's a rate limit error
+            if (result.rateLimited) {
+                showMessage('Too many requests. Please wait a minute.', 'error')
+                setTimeout(() => {
+                    window.location.href = '/ai/login/index.html'
+                }, 3000)
+                return null
+            }
+            
+            // Not logged in, redirect to login
+            window.location.href = '/ai/login/index.html'
+            return null
+        }
+        
+        if (!result.session) {
+            window.location.href = '/ai/login/index.html'
+            return null
+        }
+        
+        const userResult = await getUser()
+        if (userResult.success && userResult.user) {
+            return userResult.user
+        }
+        
+        // If getUser fails but session exists, still allow access
+        return result.session.user
+    } catch (error) {
+        console.log('Auth check error:', error)
         window.location.href = '/ai/login/index.html'
         return null
     }
+}
+
+// Add showMessage function
+function showMessage(message, type) {
+    const existingMsg = document.querySelector('.message-alert')
+    if (existingMsg) existingMsg.remove()
     
-    const userResult = await getUser()
-    if (userResult.success && userResult.user) {
-        return userResult.user
+    const msgEl = document.createElement('div')
+    msgEl.className = `message-alert ${type}`
+    msgEl.textContent = message
+    
+    msgEl.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+        max-width: 90%;
+        text-align: center;
+    `
+    
+    if (type === 'success') {
+        msgEl.style.backgroundColor = '#10b981'
+    } else if (type === 'error') {
+        msgEl.style.backgroundColor = '#ef4444'
+    } else {
+        msgEl.style.backgroundColor = '#0ea5e9'
     }
-    return null
+    
+    const style = document.createElement('style')
+    style.textContent = `
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+    `
+    document.head.appendChild(style)
+    
+    document.body.appendChild(msgEl)
+    
+    setTimeout(() => {
+        if (msgEl.parentNode) {
+            msgEl.style.animation = 'slideUp 0.3s ease'
+            const slideUpStyle = document.createElement('style')
+            slideUpStyle.textContent = `
+                @keyframes slideUp {
+                    from { top: 20px; opacity: 1; }
+                    to { top: -50px; opacity: 0; }
+                }
+            `
+            document.head.appendChild(slideUpStyle)
+            
+            setTimeout(() => {
+                if (msgEl.parentNode) {
+                    msgEl.remove()
+                }
+            }, 300)
+        }
+    }, 3000)
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -161,7 +249,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (result.success) {
             window.location.href = '/ai/index.html'
         } else {
-            alert('Logout failed: ' + result.error)
+            showMessage('Logout failed: ' + result.error, 'error')
         }
     })
     
