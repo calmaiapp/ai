@@ -1,0 +1,331 @@
+import { supabase } from './supabase.js'
+import { handleSupabaseError } from './auth-helpers.js'
+
+// ========== MAIN AUTH FUNCTIONS ==========
+
+export async function signUp(email, password, username) {
+    try {
+        // Rate limit check
+        if (await isRateLimited('signup', email)) {
+            return {
+                success: false,
+                error: 'Too many attempts. Please wait 60 seconds.',
+                rateLimited: true
+            }
+        }
+
+        // Sign up with Supabase Auth
+        const { data: signupData, error: signupError } = await supabase.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+                data: {
+                    username: username,
+                    email: email,
+                    created_at: new Date().toISOString()
+                }
+            }
+        })
+
+        if (signupError) {
+            await trackRateLimit('signup', email)
+            return handleSupabaseError(signupError)
+        }
+
+        // Create user profile
+        await createUserProfile(signupData.user, username)
+
+        // Auto login after signup
+        const loginResult = await autoLoginAfterSignup(email, password)
+        
+        if (loginResult.success) {
+            await clearRateLimit('signup', email)
+            return {
+                success: true,
+                data: loginResult.data,
+                autoLoggedIn: true,
+                message: 'Account created successfully!'
+            }
+        }
+
+        return {
+            success: true,
+            autoLoggedIn: false,
+            message: 'Account created! Please login.'
+        }
+    } catch (error) {
+        console.error('Signup error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
+export async function signIn(identifier, password) {
+    try {
+        // Rate limit check
+        if (await isRateLimited('login', identifier)) {
+            return {
+                success: false,
+                error: 'Too many attempts. Please wait 30 seconds.',
+                rateLimited: true
+            }
+        }
+
+        let email = identifier
+        
+        // Convert username to email if needed
+        if (!identifier.includes('@')) {
+            const userEmail = await getEmailFromUsername(identifier)
+            if (userEmail) email = userEmail
+        }
+
+        // Sign in
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        })
+
+        if (error) {
+            await trackRateLimit('login', identifier)
+            return handleSupabaseError(error)
+        }
+
+        // Update last active
+        await updateLastActive(data.user.id)
+
+        await clearRateLimit('login', identifier)
+        return { success: true, data }
+    } catch (error) {
+        console.error('Signin error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
+export async function signOut() {
+    try {
+        // Clear all local data
+        clearLocalAuthData()
+        
+        // Sign out from Supabase
+        const { error } = await supabase.auth.signOut()
+        if (error) throw error
+        
+        return { success: true }
+    } catch (error) {
+        console.error('Signout error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
+// ========== SESSION & USER MANAGEMENT ==========
+
+export async function getSession() {
+    try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error) throw error
+        
+        // Store session data
+        if (data.session) {
+            storeSessionData(data.session)
+        }
+        
+        return { success: true, session: data.session }
+    } catch (error) {
+        console.error('Get session error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
+export async function getUser() {
+    try {
+        const { data, error } = await supabase.auth.getUser()
+        if (error) throw error
+        
+        if (data.user) {
+            // Update user metadata
+            await updateUserMetadata(data.user)
+        }
+        
+        return { success: true, user: data.user }
+    } catch (error) {
+        console.error('Get user error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
+export async function getCurrentUser() {
+    try {
+        const sessionResult = await getSession()
+        if (!sessionResult.success || !sessionResult.session) {
+            return { success: false, user: null }
+        }
+
+        const userResult = await getUser()
+        return userResult
+    } catch (error) {
+        console.error('Get current user error:', error)
+        return { success: false, user: null, error: error.message }
+    }
+}
+
+// ========== HELPER FUNCTIONS ==========
+
+async function createUserProfile(user, username) {
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .insert({
+                id: user.id,
+                username: username,
+                created_at: new Date(),
+                last_active: new Date()
+            })
+
+        if (error && !error.message.includes('duplicate')) {
+            console.warn('Profile creation warning:', error.message)
+        }
+
+        // Create user settings
+        await supabase
+            .from('user_settings')
+            .insert({
+                user_id: user.id,
+                theme: 'light',
+                notifications_enabled: true,
+                meditation_goal_minutes: 10
+            })
+
+        // Create welcome achievement
+        await supabase
+            .from('achievements')
+            .insert({
+                user_id: user.id,
+                achievement_type: 'welcome',
+                title: 'Welcome to Calm',
+                description: 'Started your meditation journey'
+            })
+    } catch (error) {
+        console.warn('User profile creation error:', error)
+    }
+}
+
+async function autoLoginAfterSignup(email, password) {
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        })
+
+        if (error) {
+            return { success: false, error: error.message }
+        }
+
+        await updateLastActive(data.user.id)
+        return { success: true, data }
+    } catch (error) {
+        console.warn('Auto-login warning:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+async function getEmailFromUsername(username) {
+    try {
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', username)
+            .single()
+
+        if (error) return null
+
+        const { data: userData } = await supabase.auth.admin.getUserById(profile.id)
+        return userData?.user?.email || null
+    } catch (error) {
+        console.warn('Username lookup error:', error)
+        return null
+    }
+}
+
+async function updateLastActive(userId) {
+    try {
+        await supabase
+            .from('profiles')
+            .update({ last_active: new Date() })
+            .eq('id', userId)
+    } catch (error) {
+        console.warn('Last active update error:', error)
+    }
+}
+
+async function updateUserMetadata(user) {
+    // Store user data in localStorage for quick access
+    localStorage.setItem('user_metadata', JSON.stringify({
+        username: user.user_metadata?.username,
+        email: user.email,
+        userId: user.id,
+        lastUpdated: new Date().toISOString()
+    }))
+}
+
+function storeSessionData(session) {
+    localStorage.setItem('session_expiry', session.expires_at)
+    localStorage.setItem('session_token', session.access_token)
+}
+
+function clearLocalAuthData() {
+    localStorage.removeItem('session_expiry')
+    localStorage.removeItem('session_token')
+    localStorage.removeItem('user_metadata')
+    localStorage.removeItem('rememberMe')
+}
+
+// Rate limiting functions (moved from auth-helpers for better organization)
+async function isRateLimited(type, identifier) {
+    const key = `${type}_limit_${identifier}`
+    const limitData = localStorage.getItem(key)
+    
+    if (!limitData) return false
+    
+    const { count, timestamp } = JSON.parse(limitData)
+    const now = Date.now()
+    const timeWindow = type === 'signup' ? 60000 : 30000
+    
+    if (now - timestamp < timeWindow && count >= 3) {
+        return true
+    }
+    
+    return false
+}
+
+async function trackRateLimit(type, identifier) {
+    const key = `${type}_limit_${identifier}`
+    const limitData = localStorage.getItem(key)
+    const now = Date.now()
+    const timeWindow = type === 'signup' ? 60000 : 30000
+    
+    if (limitData) {
+        const { count, timestamp } = JSON.parse(limitData)
+        
+        if (now - timestamp < timeWindow) {
+            localStorage.setItem(key, JSON.stringify({
+                count: count + 1,
+                timestamp: now
+            }))
+        } else {
+            // Reset if outside time window
+            localStorage.setItem(key, JSON.stringify({
+                count: 1,
+                timestamp: now
+            }))
+        }
+    } else {
+        localStorage.setItem(key, JSON.stringify({
+            count: 1,
+            timestamp: now
+        }))
+    }
+}
+
+async function clearRateLimit(type, identifier) {
+    const key = `${type}_limit_${identifier}`
+    localStorage.removeItem(key)
+            }
