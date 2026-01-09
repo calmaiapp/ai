@@ -3,7 +3,7 @@
 import { Validation, validationRules } from '../utils/validation.js'
 import { showMessage } from './messages.js'
 
-// ADD THIS FUNCTION AT THE TOP
+// Password toggle function
 export function setupPasswordToggle(inputId, options = {}) {
     const input = document.getElementById(inputId)
     if (!input) return null
