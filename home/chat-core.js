@@ -35,7 +35,7 @@ class ChatCore {
             // Load initial data
             await this.loadInitialData()
 
-            // Setup idle timer (FIXED LINE)
+            // Setup idle timer (SAFE VERSION)
             this.setupIdleTimer()
 
             this.isInitialized = true
@@ -566,11 +566,28 @@ class ChatCore {
     // ========== IDLE TIMER ==========
 
     setupIdleTimer() {
+        // SAFE VERSION: Check if we're in a browser environment
+        if (typeof window === 'undefined' || typeof document === 'undefined') {
+            console.warn('Not in browser environment, skipping idle timer setup')
+            return
+        }
+
         this.resetIdleTimer()
 
-        // Reset timer on user interaction - FIXED: Removed 'scroll' event
-        ['keydown', 'mousedown', 'touchstart'].forEach(event => {
-            document.addEventListener(event, () => this.resetIdleTimer())
+        // SAFE VERSION: Use try-catch and check for event support
+        const events = ['keydown', 'mousedown']
+        
+        // Only add touchstart if supported (mobile devices)
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            events.push('touchstart')
+        }
+
+        events.forEach(event => {
+            try {
+                document.addEventListener(event, () => this.resetIdleTimer())
+            } catch (error) {
+                console.warn(`Could not add ${event} listener:`, error)
+            }
         })
     }
 
