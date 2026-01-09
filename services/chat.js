@@ -1,4 +1,4 @@
-// Chat service for handling real-time messaging and conversations
+// Chat service for Calm AI
 import apiService from './api.js'
 import { Storage } from '../utils/storage.js'
 import { showMessage, showError } from '../components/messages.js'
@@ -124,34 +124,20 @@ class ChatService {
             // Add typing indicator
             this.addMessage(aiResponse)
             
-            // Get conversation history for context
-            const recentMessages = this.getRecentMessages(userMessage.conversationId, 6)
-            const conversationHistory = recentMessages.map(msg => ({
-                role: msg.sender === 'user' ? 'user' : 'assistant',
-                content: msg.content
-            }))
+            // Call OpenAI via our apiService
+            const response = await apiService.getAIResponse(userMessage.content)
             
-            // Call OpenAI API via our apiService
-            const response = await apiService.getAIResponse(userMessage.content, conversationHistory)
-            
-            // Update message with response
+            // Update with real response
             this.updateMessage(aiResponse.id, {
                 content: response.message,
                 status: 'sent',
                 isTyping: false,
                 timestamp: new Date().toISOString(),
-                isFallback: response.isFallback
+                isFallback: !response.success
             })
             
         } catch (error) {
             console.error('AI response error:', error)
-            // Show gentle error
-            this.updateMessage(aiResponse.id, {
-                content: "Let's breathe together for a moment. The connection is quiet.",
-                status: 'sent',
-                isTyping: false,
-                isFallback: true
-            })
         } finally {
             this.isGenerating = false
         }
