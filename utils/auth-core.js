@@ -116,6 +116,66 @@ export async function signOut() {
     }
 }
 
+// ========== PASSWORD RESET FUNCTIONS ==========
+
+export async function resetPasswordWithSecurity(username, securityAnswer, newPassword) {
+    try {
+        // Verify security answer first
+        const verifyResult = await verifySecurityAnswer(username, securityAnswer)
+        
+        if (!verifyResult.success || !verifyResult.correct) {
+            return {
+                success: false,
+                error: 'Security answer is incorrect'
+            }
+        }
+
+        // Get user email from username
+        const userEmail = await getEmailFromUsername(username)
+        if (!userEmail) {
+            return {
+                success: false,
+                error: 'User not found'
+            }
+        }
+
+        // Reset password with Supabase
+        const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+            redirectTo: `${window.location.origin}/ai/auth/reset-password.html`
+        })
+
+        if (error) {
+            return handleSupabaseError(error)
+        }
+
+        return {
+            success: true,
+            message: 'Password reset email sent. Check your inbox.'
+        }
+    } catch (error) {
+        console.error('Reset password error:', error)
+        return {
+            success: false,
+            error: error.message || 'Failed to reset password'
+        }
+    }
+}
+
+export async function updatePassword(newPassword) {
+    try {
+        const { error } = await supabase.auth.updateUser({
+            password: newPassword
+        })
+
+        if (error) throw error
+
+        return { success: true }
+    } catch (error) {
+        console.error('Update password error:', error)
+        return handleSupabaseError(error)
+    }
+}
+
 // ========== SECURITY FUNCTIONS ==========
 
 export async function getSecurityQuestion(username) {
@@ -180,7 +240,19 @@ export async function verifySecurityAnswer(username, answer) {
             .eq('username', username)
             .single()
 
-        if (error) throw error
+        if (error) {
+            if (error.code === 'PGRST116') {
+                return { success: false, error: 'User not found' }
+            }
+            throw error
+        }
+
+        if (!data.security_answer_hash) {
+            return { 
+                success: false, 
+                error: 'No security question set for this user' 
+            }
+        }
 
         // Compare encoded answers
         const isCorrect = btoa(answer) === data.security_answer_hash
