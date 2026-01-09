@@ -116,6 +116,84 @@ export async function signOut() {
     }
 }
 
+// ========== SECURITY FUNCTIONS ==========
+
+export async function getSecurityQuestion(username) {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('security_question')
+            .eq('username', username)
+            .single()
+
+        if (error) {
+            if (error.code === 'PGRST116') {
+                return { success: false, error: 'User not found' }
+            }
+            throw error
+        }
+
+        return { 
+            success: true, 
+            question: data.security_question 
+        }
+    } catch (error) {
+        console.error('Get security question error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function updateSecurityQuestion(username, question, answer) {
+    try {
+        // Get user ID from username
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', username)
+            .single()
+
+        if (profileError) throw profileError
+
+        // Update security question and answer
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                security_question: question,
+                security_answer_hash: btoa(answer) // Simple encoding for now
+            })
+            .eq('id', profile.id)
+
+        if (error) throw error
+
+        return { success: true }
+    } catch (error) {
+        console.error('Update security question error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function verifySecurityAnswer(username, answer) {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('security_answer_hash')
+            .eq('username', username)
+            .single()
+
+        if (error) throw error
+
+        // Compare encoded answers
+        const isCorrect = btoa(answer) === data.security_answer_hash
+        return { 
+            success: true, 
+            correct: isCorrect 
+        }
+    } catch (error) {
+        console.error('Verify security answer error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
 // ========== SESSION & USER MANAGEMENT ==========
 
 export async function getSession() {
@@ -278,7 +356,7 @@ function clearLocalAuthData() {
     localStorage.removeItem('rememberMe')
 }
 
-// Rate limiting functions (moved from auth-helpers for better organization)
+// Rate limiting functions
 async function isRateLimited(type, identifier) {
     const key = `${type}_limit_${identifier}`
     const limitData = localStorage.getItem(key)
@@ -328,4 +406,4 @@ async function trackRateLimit(type, identifier) {
 async function clearRateLimit(type, identifier) {
     const key = `${type}_limit_${identifier}`
     localStorage.removeItem(key)
-            }
+}
