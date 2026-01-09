@@ -24,9 +24,7 @@ export async function signUp(email, password, username) {
                     username: username,
                     email: email,
                     created_at: new Date().toISOString()
-                },
-                // Disable email confirmation
-                emailRedirectTo: window.location.origin
+                }
             }
         })
 
@@ -42,14 +40,14 @@ export async function signUp(email, password, username) {
         console.log('✅ Auth signup successful, creating profile...')
 
         // Create user profile
-        const profileResult = await createUserProfile(signupData.user, username)
+        const profileResult = await createUserProfile(signupData.user, username, email)
         
         if (!profileResult.success) {
             console.warn('⚠️ Profile creation warning:', profileResult.error)
             // Continue anyway - user can log in
         }
 
-        // Auto login after signup (since email confirmation is off)
+        // Auto login after signup
         const loginResult = await autoLoginAfterSignup(email, password)
         
         if (loginResult.success) {
@@ -117,13 +115,6 @@ export async function signIn(identifier, password) {
                 return {
                     success: false,
                     error: 'Email/username or password is incorrect'
-                }
-            }
-            
-            if (error.message.includes('Email not confirmed')) {
-                return {
-                    success: false,
-                    error: 'Please check your email to confirm your account'
                 }
             }
             
@@ -375,7 +366,7 @@ export async function getCurrentUser() {
 
 // ========== HELPER FUNCTIONS ==========
 
-async function createUserProfile(user, username) {
+async function createUserProfile(user, username, email) {
     try {
         console.log('👤 Creating profile for user:', user.id)
         
@@ -384,7 +375,7 @@ async function createUserProfile(user, username) {
             .insert({
                 id: user.id,
                 username: username,
-                email: user.email, // Store email for username lookup
+                email: email, // Use the email parameter
                 created_at: new Date().toISOString(),
                 last_active: new Date().toISOString()
             })
@@ -392,12 +383,13 @@ async function createUserProfile(user, username) {
         if (error) {
             console.error('❌ Profile creation error:', error)
             // If it's a duplicate error, that's okay - profile already exists
-            if (!error.message.includes('duplicate')) {
-                return { success: false, error: error.message }
+            if (error.message.includes('duplicate')) {
+                return { success: true, message: 'Profile already exists' }
             }
+            return { success: false, error: error.message }
         }
 
-        console.log('✅ Profile created/updated')
+        console.log('✅ Profile created')
 
         // Create user settings
         await supabase
