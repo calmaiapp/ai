@@ -555,6 +555,11 @@ export function closeAllModals() {
     }
 }
 
+// ADD THIS FUNCTION - The missing export
+export function createModal(options) {
+    return getModalManager().createModal(options)
+}
+
 // Initialize modal manager on page load
 if (typeof window !== 'undefined') {
     window.addEventListener('DOMContentLoaded', () => {
