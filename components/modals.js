@@ -371,6 +371,27 @@ class ModalManager {
         })
     }
     
+    // ADDED: showConfirm function (alias for showConfirmationModal)
+    showConfirm(options = {}) {
+        const {
+            title = 'Confirm Action',
+            message = 'Are you sure you want to proceed?',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            onConfirm = () => {},
+            onCancel = () => {}
+        } = options
+        
+        return this.showConfirmationModal({
+            title: title,
+            message: message,
+            confirmText: confirmText,
+            cancelText: cancelText,
+            onConfirm: onConfirm,
+            onCancel: onCancel
+        })
+    }
+    
     showConfirmationModal(options = {}) {
         const {
             title = 'Confirm Action',
@@ -537,6 +558,11 @@ export function showConfirmationModal(options) {
     return getModalManager().showConfirmationModal(options)
 }
 
+// ADDED: Export showConfirm function
+export function showConfirm(options) {
+    return getModalManager().showConfirm(options)
+}
+
 export function showLoadingModal(message) {
     return getModalManager().showLoadingModal(message)
 }
@@ -555,7 +581,6 @@ export function closeAllModals() {
     }
 }
 
-// ADD THIS FUNCTION - The missing export
 export function createModal(options) {
     return getModalManager().createModal(options)
 }
