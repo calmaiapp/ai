@@ -1,4 +1,4 @@
-// services/api.js - Final version for Calm AI
+// API service for Calm AI
 class ApiService {
     constructor() {
         // Your Calm AI function URL
