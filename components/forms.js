@@ -3,6 +3,54 @@
 import { Validation, validationRules } from '../utils/validation.js'
 import { showMessage } from './messages.js'
 
+// ADD THIS FUNCTION AT THE TOP
+export function setupPasswordToggle(inputId, options = {}) {
+    const input = document.getElementById(inputId)
+    if (!input) return null
+    
+    const container = input.parentElement
+    const toggleButton = document.createElement('button')
+    
+    toggleButton.type = 'button'
+    toggleButton.className = options.className || 'password-toggle'
+    toggleButton.innerHTML = options.showIcon || '👁️'
+    toggleButton.setAttribute('aria-label', 'Show password')
+    
+    toggleButton.style.cssText = `
+        position: absolute;
+        right: 12px;
+        top: ${container.tagName === 'LABEL' ? '40px' : '50%'};
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        font-size: 16px;
+        opacity: 0.7;
+        z-index: 10;
+    `
+    
+    if (container.style.position !== 'absolute' && container.style.position !== 'relative') {
+        container.style.position = 'relative'
+    }
+    
+    container.appendChild(toggleButton)
+    
+    toggleButton.addEventListener('click', () => {
+        if (input.type === 'password') {
+            input.type = 'text'
+            toggleButton.innerHTML = options.hideIcon || '🙈'
+            toggleButton.setAttribute('aria-label', 'Hide password')
+        } else {
+            input.type = 'password'
+            toggleButton.innerHTML = options.showIcon || '👁️'
+            toggleButton.setAttribute('aria-label', 'Show password')
+        }
+    })
+    
+    return toggleButton
+}
+
 export class FormManager {
     constructor(formElement, options = {}) {
         this.form = formElement
@@ -377,7 +425,8 @@ export function createInput(options = {}) {
         required = false,
         disabled = false,
         className = '',
-        validation
+        validation,
+        showPasswordToggle = false
     } = options
     
     const container = document.createElement('div')
@@ -393,6 +442,9 @@ export function createInput(options = {}) {
         container.appendChild(labelEl)
     }
     
+    const inputWrapper = document.createElement('div')
+    inputWrapper.style.position = 'relative'
+    
     const input = document.createElement('input')
     input.type = type
     input.id = id
@@ -407,7 +459,16 @@ export function createInput(options = {}) {
         input.dataset.validate = validation
     }
     
-    container.appendChild(input)
+    inputWrapper.appendChild(input)
+    container.appendChild(inputWrapper)
+    
+    // Add password toggle if requested
+    if (showPasswordToggle && type === 'password') {
+        setupPasswordToggle(id, {
+            showIcon: '👁️',
+            hideIcon: '🙈'
+        })
+    }
     
     return container
 }
@@ -636,6 +697,21 @@ export function injectFormStyles() {
         .btn-large {
             padding: 1rem 2rem;
             font-size: 1.125rem;
+        }
+        
+        /* Password toggle button */
+        .password-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            font-size: 16px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .password-toggle:hover {
+            opacity: 1;
         }
     `
     document.head.appendChild(style)
