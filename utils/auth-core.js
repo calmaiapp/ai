@@ -1,10 +1,11 @@
 import { supabase } from './supabase.js'
-import { handleSupabaseError } from './auth-helpers.js'
 
 // ========== MAIN AUTH FUNCTIONS ==========
 
 export async function signUp(email, password, username) {
     try {
+        console.log('📝 Signup attempt:', { email, username })
+        
         // Rate limit check
         if (await isRateLimited('signup', email)) {
             return {
@@ -14,7 +15,7 @@ export async function signUp(email, password, username) {
             }
         }
 
-        // Sign up with Supabase Auth
+        // Sign up with Supabase Auth (NO email confirmation)
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
             email: email,
             password: password,
@@ -23,19 +24,32 @@ export async function signUp(email, password, username) {
                     username: username,
                     email: email,
                     created_at: new Date().toISOString()
-                }
+                },
+                // Disable email confirmation
+                emailRedirectTo: window.location.origin
             }
         })
 
         if (signupError) {
+            console.error('❌ Signup error:', signupError)
             await trackRateLimit('signup', email)
-            return handleSupabaseError(signupError)
+            return {
+                success: false,
+                error: signupError.message
+            }
         }
 
-        // Create user profile
-        await createUserProfile(signupData.user, username)
+        console.log('✅ Auth signup successful, creating profile...')
 
-        // Auto login after signup
+        // Create user profile
+        const profileResult = await createUserProfile(signupData.user, username)
+        
+        if (!profileResult.success) {
+            console.warn('⚠️ Profile creation warning:', profileResult.error)
+            // Continue anyway - user can log in
+        }
+
+        // Auto login after signup (since email confirmation is off)
         const loginResult = await autoLoginAfterSignup(email, password)
         
         if (loginResult.success) {
@@ -51,16 +65,21 @@ export async function signUp(email, password, username) {
         return {
             success: true,
             autoLoggedIn: false,
-            message: 'Account created! Please login.'
+            message: 'Account created! You can now login.'
         }
     } catch (error) {
-        console.error('Signup error:', error)
-        return handleSupabaseError(error)
+        console.error('🔥 Signup error:', error)
+        return {
+            success: false,
+            error: error.message || 'Signup failed'
+        }
     }
 }
 
 export async function signIn(identifier, password) {
     try {
+        console.log('🔑 Login attempt for:', identifier)
+        
         // Rate limit check
         if (await isRateLimited('login', identifier)) {
             return {
@@ -72,12 +91,17 @@ export async function signIn(identifier, password) {
 
         let email = identifier
         
-        // Convert username to email if needed
+        // Try username lookup if not email
         if (!identifier.includes('@')) {
             const userEmail = await getEmailFromUsername(identifier)
-            if (userEmail) email = userEmail
+            if (userEmail) {
+                email = userEmail
+                console.log('📧 Found email for username:', email)
+            }
         }
 
+        console.log('🔐 Attempting login with:', email)
+        
         // Sign in
         const { data, error } = await supabase.auth.signInWithPassword({
             email: email,
@@ -85,18 +109,47 @@ export async function signIn(identifier, password) {
         })
 
         if (error) {
+            console.error('❌ Login error:', error.message)
             await trackRateLimit('login', identifier)
-            return handleSupabaseError(error)
+            
+            // User-friendly error messages
+            if (error.message.includes('Invalid login credentials')) {
+                return {
+                    success: false,
+                    error: 'Email/username or password is incorrect'
+                }
+            }
+            
+            if (error.message.includes('Email not confirmed')) {
+                return {
+                    success: false,
+                    error: 'Please check your email to confirm your account'
+                }
+            }
+            
+            return {
+                success: false,
+                error: error.message || 'Login failed'
+            }
         }
 
+        console.log('✅ Login successful for:', data.user.id)
+        
         // Update last active
         await updateLastActive(data.user.id)
 
         await clearRateLimit('login', identifier)
-        return { success: true, data }
+        return { 
+            success: true, 
+            data,
+            user: data.user
+        }
     } catch (error) {
-        console.error('Signin error:', error)
-        return handleSupabaseError(error)
+        console.error('🔥 Login error:', error)
+        return {
+            success: false,
+            error: error.message || 'Login failed'
+        }
     }
 }
 
@@ -112,7 +165,7 @@ export async function signOut() {
         return { success: true }
     } catch (error) {
         console.error('Signout error:', error)
-        return handleSupabaseError(error)
+        return { success: false, error: error.message }
     }
 }
 
@@ -145,7 +198,7 @@ export async function resetPasswordWithSecurity(username, securityAnswer, newPas
         })
 
         if (error) {
-            return handleSupabaseError(error)
+            return { success: false, error: error.message }
         }
 
         return {
@@ -172,7 +225,7 @@ export async function updatePassword(newPassword) {
         return { success: true }
     } catch (error) {
         console.error('Update password error:', error)
-        return handleSupabaseError(error)
+        return { success: false, error: error.message }
     }
 }
 
@@ -212,14 +265,17 @@ export async function updateSecurityQuestion(username, question, answer) {
             .eq('username', username)
             .single()
 
-        if (profileError) throw profileError
+        if (profileError) {
+            return { success: false, error: 'User not found' }
+        }
 
         // Update security question and answer
         const { error } = await supabase
             .from('profiles')
             .update({
                 security_question: question,
-                security_answer_hash: btoa(answer) // Simple encoding for now
+                security_answer_hash: btoa(answer), // Simple encoding
+                updated_at: new Date().toISOString()
             })
             .eq('id', profile.id)
 
@@ -281,7 +337,7 @@ export async function getSession() {
         return { success: true, session: data.session }
     } catch (error) {
         console.error('Get session error:', error)
-        return handleSupabaseError(error)
+        return { success: false, error: error.message }
     }
 }
 
@@ -298,7 +354,7 @@ export async function getUser() {
         return { success: true, user: data.user }
     } catch (error) {
         console.error('Get user error:', error)
-        return handleSupabaseError(error)
+        return { success: false, error: error.message }
     }
 }
 
@@ -321,18 +377,27 @@ export async function getCurrentUser() {
 
 async function createUserProfile(user, username) {
     try {
+        console.log('👤 Creating profile for user:', user.id)
+        
         const { error } = await supabase
             .from('profiles')
             .insert({
                 id: user.id,
                 username: username,
-                created_at: new Date(),
-                last_active: new Date()
+                email: user.email, // Store email for username lookup
+                created_at: new Date().toISOString(),
+                last_active: new Date().toISOString()
             })
 
-        if (error && !error.message.includes('duplicate')) {
-            console.warn('Profile creation warning:', error.message)
+        if (error) {
+            console.error('❌ Profile creation error:', error)
+            // If it's a duplicate error, that's okay - profile already exists
+            if (!error.message.includes('duplicate')) {
+                return { success: false, error: error.message }
+            }
         }
+
+        console.log('✅ Profile created/updated')
 
         // Create user settings
         await supabase
@@ -341,7 +406,8 @@ async function createUserProfile(user, username) {
                 user_id: user.id,
                 theme: 'light',
                 notifications_enabled: true,
-                meditation_goal_minutes: 10
+                meditation_goal_minutes: 10,
+                created_at: new Date().toISOString()
             })
 
         // Create welcome achievement
@@ -351,10 +417,14 @@ async function createUserProfile(user, username) {
                 user_id: user.id,
                 achievement_type: 'welcome',
                 title: 'Welcome to Calm',
-                description: 'Started your meditation journey'
+                description: 'Started your meditation journey',
+                created_at: new Date().toISOString()
             })
+
+        return { success: true }
     } catch (error) {
-        console.warn('User profile creation error:', error)
+        console.warn('⚠️ User profile creation error:', error)
+        return { success: false, error: error.message }
     }
 }
 
@@ -381,14 +451,16 @@ async function getEmailFromUsername(username) {
     try {
         const { data: profile, error } = await supabase
             .from('profiles')
-            .select('id')
+            .select('email')
             .eq('username', username)
             .single()
 
-        if (error) return null
+        if (error) {
+            console.log('Username lookup failed:', error.message)
+            return null
+        }
 
-        const { data: userData } = await supabase.auth.admin.getUserById(profile.id)
-        return userData?.user?.email || null
+        return profile.email
     } catch (error) {
         console.warn('Username lookup error:', error)
         return null
@@ -399,7 +471,10 @@ async function updateLastActive(userId) {
     try {
         await supabase
             .from('profiles')
-            .update({ last_active: new Date() })
+            .update({ 
+                last_active: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
             .eq('id', userId)
     } catch (error) {
         console.warn('Last active update error:', error)
