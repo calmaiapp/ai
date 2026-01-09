@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>Test Supabase Connection</h2>
+    <button onclick="testSupabase()">Test Connection</button>
+    <div id="result"></div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        
+        const supabaseUrl = 'https://modjpklljhkwesysezvc.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZGpwa2xsamhrd2VzeXNlenZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3ODA1MTQsImV4cCI6MjA4MzM1NjUxNH0.KW4rzrHBFY73HlYMK2MtCELjeFpQzBWE9iheT6JGiO8'
+        
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        
+        async function testSupabase() {
+            try {
+                // Test 1: Check if Supabase is reachable
+                document.getElementById('result').innerHTML = 'Testing connection...'
+                
+                // Test 2: Try to sign up a test user
+                const { data, error } = await supabase.auth.signUp({
+                    email: 'test@test.com',
+                    password: 'testpassword123'
+                })
+                
+                if (error) {
+                    document.getElementById('result').innerHTML = 
+                        `<span style="color: red;">Error: ${error.message}</span><br>
+                         Code: ${error.code || 'N/A'}`
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<span style="color: green;">Success! User created: ${data.user?.email}</span>`
+                }
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<span style="color: red;">Exception: ${error.message}</span>`
+            }
+        }
+    </script>
+</body>
+</html>
